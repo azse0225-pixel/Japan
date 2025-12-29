@@ -1,65 +1,106 @@
-import Image from "next/image";
+// app/page.tsx
+import Link from "next/link";
 
-export default function Home() {
+// 模擬資料：換成 Q 版插畫網址
+const MY_TRIPS = [
+  {
+    id: "tokyo-2024",
+    title: "東京櫻花祭",
+    date: "2024-04-01",
+    location: "日本",
+    emoji: "🌸",
+    // 使用 Q 版東京插畫
+    imageUrl:
+      "https://img.freepik.com/free-vector/tokyo-landmark-skyline-illustration_23-2148902094.jpg",
+  },
+];
+
+export default function HomePage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <main className="min-h-screen bg-[#FFF7ED] p-8 md:p-16">
+      <div className="max-w-6xl mx-auto">
+        {/* 頁面標題區：使用暖色調與可愛字體感 */}
+        <header className="flex flex-col md:flex-row justify-between items-center mb-16 gap-6">
+          <div className="text-center md:text-left">
+            <h1 className="text-5xl font-black text-orange-900 tracking-tighter italic">
+              MY ADVENTURES <span className="text-orange-400">.</span>
+            </h1>
+            <p className="text-orange-800/60 mt-3 font-bold tracking-widest uppercase text-sm">
+              準備好開啟新的冒險了嗎？
+            </p>
+          </div>
+          <button className="bg-orange-500 hover:bg-orange-600 text-white px-10 py-4 rounded-[24px] font-black transition-all shadow-xl shadow-orange-200 active:scale-95 text-lg">
+            + 開始新旅程
+          </button>
+        </header>
+
+        {/* 旅程卡片網格：大圓角、暖色陰影 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+          {MY_TRIPS.map((trip) => (
+            <Link
+              key={trip.id}
+              href={`/trip/${trip.id}`}
+              className="group relative h-[450px] w-full overflow-hidden rounded-[48px] bg-white shadow-2xl shadow-orange-200/50 border-4 border-white transition-all hover:-translate-y-3"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+              {/* 背景圖片：Q 版插畫 */}
+              <img
+                src={trip.imageUrl}
+                alt={trip.title}
+                className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-80"
+              />
+
+              {/* 暖色漸層遮罩 */}
+              <div className="absolute inset-0 bg-gradient-to-t from-orange-900/80 via-transparent to-transparent" />
+
+              {/* 卡片內容區 */}
+              <div className="absolute bottom-0 p-8 w-full">
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-lg text-2xl transform -rotate-12 group-hover:rotate-0 transition-transform">
+                    {trip.emoji}
+                  </span>
+                  <span className="text-white font-black tracking-widest uppercase text-xs bg-orange-500/80 px-3 py-1 rounded-full">
+                    {trip.location}
+                  </span>
+                </div>
+
+                <h2 className="text-3xl font-black text-white mb-2 drop-shadow-md">
+                  {trip.title}
+                </h2>
+
+                <div className="flex justify-between items-center mt-6">
+                  <p className="text-white/80 font-bold text-sm">{trip.date}</p>
+                  <div className="h-10 w-10 rounded-full bg-white flex items-center justify-center text-orange-500 shadow-lg translate-x-10 group-hover:translate-x-0 transition-transform duration-500 opacity-0 group-hover:opacity-100">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="20"
+                      height="20"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M14 5l7 7m0 0l-7 7m7-7H3"
+                      />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </Link>
+          ))}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+
+        {/* 底部裝飾 */}
+        <footer className="mt-24 text-center">
+          <div className="inline-block p-4 bg-orange-100 rounded-full">
+            <span className="text-orange-400 text-sm font-bold">
+              🗺️ 收集全世界的足跡
+            </span>
+          </div>
+        </footer>
+      </div>
+    </main>
   );
 }
