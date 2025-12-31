@@ -41,13 +41,13 @@ export async function getSpots(tripId: string, day: number) {
 	return data || [];
 }
 
-// 4. 新增景點
-export async function addSpotToDB(tripId: string, name: string, day: number, lat?: number, lng?: number) {
+// 4. 修改後的新增景點（加入 category）
+export async function addSpotToDB(tripId: string, name: string, day: number, lat?: number, lng?: number, category: string = 'spot') {
 	const { data: existingSpots } = await supabase.from('spots').select('id').eq('trip_id', tripId).eq('day', day);
 	const nextIndex = existingSpots ? existingSpots.length : 0;
 
 	const { error } = await supabase.from('spots').insert([{
-		trip_id: tripId, name, day, order_index: nextIndex, lat, lng
+		trip_id: tripId, name, day, order_index: nextIndex, lat, lng, category
 	}]);
 
 	if (error) throw error;
@@ -61,7 +61,7 @@ export async function deleteSpot(tripId: string, spotId: string) {
 	revalidatePath(`/trip/${tripId}`);
 }
 
-// 6. 更新排序
+// 6. 修改後的更新排序（確保 category 不會丟失）
 export async function updateSpotsOrder(tripId: string, updatedSpots: any[], day: number) {
 	const updates = updatedSpots.map((spot, index) => ({
 		id: spot.id,
@@ -70,11 +70,12 @@ export async function updateSpotsOrder(tripId: string, updatedSpots: any[], day:
 		day: day,
 		order_index: index,
 		lat: spot.lat,
-		lng: spot.lng
+		lng: spot.lng,
+		note: spot.note,
+		category: spot.category || 'spot' // 👈 確保分類被保留
 	}));
 	const { error } = await supabase.from('spots').upsert(updates);
 	if (error) throw error;
-	revalidatePath(`/trip/${tripId}`);
 }
 
 // 7. 刪除天數
@@ -95,4 +96,21 @@ export async function swapDays(tripId: string, dayA: number, dayB: number) {
 	await supabase.from('spots').update({ day: dayA }).eq('trip_id', tripId).eq('day', dayB);
 	await supabase.from('spots').update({ day: dayB }).eq('trip_id', tripId).eq('day', -1);
 	revalidatePath(`/trip/${tripId}`);
+}
+// 9. 更新景點備註
+export async function updateSpotNote(spotId: string, note: string) {
+	const { error } = await supabase
+		.from('spots')
+		.update({ note: note })
+		.eq('id', spotId);
+
+	if (error) throw error;
+}
+// 10. 更新景點分類
+export async function updateSpotCategory(spotId: string, category: string) {
+	const { error } = await supabase
+		.from('spots')
+		.update({ category: category })
+		.eq('id', spotId);
+	if (error) throw error;
 }

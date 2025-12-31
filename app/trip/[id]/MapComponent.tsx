@@ -1,15 +1,7 @@
-// app/trip/[id]/MapComponent.tsx
 "use client";
-import {
-  GoogleMap,
-  useJsApiLoader,
-  MarkerF,
-  Polyline,
-} from "@react-google-maps/api";
+import { GoogleMap, MarkerF, Polyline } from "@react-google-maps/api";
 
 const containerStyle = { width: "100%", height: "100%", borderRadius: "32px" };
-
-const libraries: "places"[] = ["places"];
 
 const mapStyles = [
   { featureType: "landscape", stylers: [{ color: "#fdf6e3" }] },
@@ -25,20 +17,21 @@ const mapStyles = [
   },
 ];
 
-export default function MapComponent({ spots }: { spots: any[] }) {
-  const { isLoaded } = useJsApiLoader({
-    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
-    libraries,
-    language: "zh-TW",
-    region: "TW",
-  });
-
+// 接受 isLoaded 作為參數
+export default function MapComponent({
+  spots,
+  isLoaded,
+}: {
+  spots: any[];
+  isLoaded: boolean;
+}) {
   const path = spots
     .filter((spot) => spot.lat && spot.lng)
     .map((spot) => ({ lat: spot.lat, lng: spot.lng }));
 
   const center = path.length > 0 ? path[0] : { lat: 24.1477, lng: 120.6736 };
 
+  // 由外部控制是否顯示
   if (!isLoaded)
     return (
       <div className="w-full h-full bg-orange-50 animate-pulse rounded-[32px]" />

@@ -10,7 +10,8 @@ const MY_TRIPS = [
     location: "日本",
     emoji: "🌸",
     // 使用 Q 版東京插畫
-    imageUrl: "/images/header.jpg",
+    imageUrl:
+      "https://img.freepik.com/free-vector/tokyo-landmark-skyline-illustration_23-2148902094.jpg",
   },
 ];
 
