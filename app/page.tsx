@@ -4,9 +4,9 @@ import Link from "next/link";
 // 模擬資料：換成 Q 版插畫網址
 const MY_TRIPS = [
   {
-    id: "tokyo-2024",
+    id: "tokyo-2025",
     title: "東京櫻花祭",
-    date: "2024-04-01",
+    date: "2025-03-28",
     location: "日本",
     emoji: "🌸",
     // 使用 Q 版東京插畫
