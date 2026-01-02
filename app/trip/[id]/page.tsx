@@ -1,5 +1,5 @@
 // app/trip/[id]/page.tsx
-import ItineraryList from "./ItineraryList";
+import ItineraryList from "../../../components/trip/ItineraryList";
 
 export default async function TripDetailPage({
   params,
