@@ -1,6 +1,7 @@
 "use server"; // 👈 將此檔案標註為伺服器 Actions
 
 import { supabase } from '@/lib/supabase';
+import { time } from 'console';
 import { revalidatePath } from 'next/cache';
 
 // 1. 取得旅程基本資料
@@ -42,7 +43,7 @@ export async function getSpots(tripId: string, day: number) {
 }
 
 // 4. 新增景點（包含 category）
-export async function addSpotToDB(tripId: string, name: string, day: number, lat?: number, lng?: number, category: string = 'spot') {
+export async function addSpotToDB(tripId: string, name: string, day: number, lat?: number, lng?: number, category: string = 'spot', time: string = "") {
 	const { data: existingSpots } = await supabase.from('spots').select('id').eq('trip_id', tripId).eq('day', day);
 	const nextIndex = existingSpots ? existingSpots.length : 0;
 
@@ -53,7 +54,8 @@ export async function addSpotToDB(tripId: string, name: string, day: number, lat
 		order_index: nextIndex,
 		lat,
 		lng,
-		category
+		category,
+		time
 	}]);
 
 	if (error) throw error;

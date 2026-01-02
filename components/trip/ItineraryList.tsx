@@ -141,7 +141,7 @@ function SpotItem({
           type="text"
           value={spot.note || ""}
           onChange={(e) => onNoteChange(spot.id, e.target.value)}
-          placeholder="✍️ 加入備註"
+          placeholder="加入備註"
           className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm text-slate-700 placeholder:text-slate-400 focus:ring-2 focus:ring-orange-100 transition-all outline-none font-medium"
         />
       </div>
@@ -160,6 +160,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
   const [targetDeleteDay, setTargetDeleteDay] = useState<number | null>(null);
   const [selectedCategory, setSelectedCategory] = useState("spot");
   const [isChecklistOpen, setIsChecklistOpen] = useState(false);
+  const [newSpotTime, setNewSpotTime] = useState("09:00");
   const [autocomplete, setAutocomplete] =
     useState<google.maps.places.Autocomplete | null>(null);
   const [tempCoords, setTempCoords] = useState<{
@@ -223,10 +224,12 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
       selectedDay,
       tempCoords?.lat,
       tempCoords?.lng,
-      selectedCategory
+      selectedCategory,
+      newSpotTime
     );
     initLoad();
     setNewSpotName("");
+    setNewSpotTime("09:00");
     setTempCoords(null);
   };
 
@@ -422,7 +425,9 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
               )}
 
               {/* Quick Add Area */}
+              {/* 快速新增區域 */}
               <div className="mt-8 p-5 bg-slate-50 rounded-[32px]">
+                {/* 分類按鈕 (保持不變) */}
                 <div className="flex gap-2 overflow-x-auto no-scrollbar mb-4">
                   {CATEGORIES.map((c) => (
                     <button
@@ -438,7 +443,17 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                     </button>
                   ))}
                 </div>
-                <div className="flex gap-2">
+
+                {/* 輸入區塊 */}
+                <div className="flex flex-col sm:flex-row gap-2">
+                  {/* ✨ 新增：時間選擇器 */}
+                  <input
+                    type="time"
+                    value={newSpotTime}
+                    onChange={(e) => setNewSpotTime(e.target.value)}
+                    className="h-[56px] px-4 rounded-2xl bg-white border-none outline-none focus:ring-2 focus:ring-orange-400 font-black text-slate-600 shadow-sm w-full sm:w-auto"
+                  />
+
                   <div className="flex-1">
                     {isLoaded && (
                       <Autocomplete
@@ -453,14 +468,15 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                             e.key === "Enter" && handleAddSpot()
                           }
                           placeholder="搜尋想去的日本景點..."
-                          className="w-full px-5 py-4 rounded-2xl bg-white border-none outline-none focus:ring-2 focus:ring-orange-400 font-bold"
+                          className="w-full h-[56px] px-5 rounded-2xl bg-white border-none outline-none focus:ring-2 focus:ring-orange-400 font-bold shadow-sm"
                         />
                       </Autocomplete>
                     )}
                   </div>
+
                   <button
                     onClick={handleAddSpot}
-                    className="bg-orange-500 text-white px-6 py-4 rounded-2xl font-black active:scale-95 transition-all"
+                    className="h-[56px] bg-orange-500 text-white px-8 rounded-2xl font-black active:scale-95 transition-all shadow-lg shadow-orange-200"
                   >
                     加
                   </button>
