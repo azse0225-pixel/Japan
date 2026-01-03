@@ -1,37 +1,278 @@
 "use client";
-import { GoogleMap, MarkerF, Polyline } from "@react-google-maps/api";
+
+import { useState, useEffect, useCallback, useRef } from "react";
+import { GoogleMap, DirectionsRenderer } from "@react-google-maps/api";
 
 const containerStyle = { width: "100%", height: "100%", borderRadius: "32px" };
+const DEFAULT_CENTER = { lat: 35.6895, lng: 139.6917 };
 
-const mapStyles = [
-  { featureType: "landscape", stylers: [{ color: "#fdf6e3" }] },
-  { featureType: "water", stylers: [{ color: "#9adcfb" }] },
-  {
-    featureType: "road",
-    stylers: [{ visibility: "simplified" }, { color: "#eee8d5" }],
-  },
-  {
-    featureType: "poi",
-    elementType: "labels",
-    stylers: [{ visibility: "off" }],
-  },
-];
-
-// 接受 isLoaded 作為參數
 export default function MapComponent({
   spots,
   isLoaded,
+  focusedSpot,
+  // ✨ 新增：把計算出的時間傳回去給列表顯示
+  onDurationsChange,
 }: {
   spots: any[];
   isLoaded: boolean;
+  focusedSpot: any | null;
+  onDurationsChange?: (durations: { [key: string]: string }) => void;
 }) {
-  const path = spots
-    .filter((spot) => spot.lat && spot.lng)
-    .map((spot) => ({ lat: spot.lat, lng: spot.lng }));
+  const [map, setMap] = useState<google.maps.Map | null>(null);
+  const [routeSegments, setRouteSegments] = useState<any[]>([]);
+  const markersRef = useRef<any[]>([]);
 
-  const center = path.length > 0 ? path[0] : { lat: 24.1477, lng: 120.6736 };
+  const onLoad = useCallback((map: google.maps.Map) => setMap(map), []);
+  const onUnmount = useCallback(() => {
+    setMap(null);
+    clearMarkers();
+  }, []);
 
-  // 由外部控制是否顯示
+  const clearMarkers = () => {
+    markersRef.current.forEach((m) => (m.map = null));
+    markersRef.current = [];
+  };
+
+  const resolveLocation = async (
+    spot: any
+  ): Promise<{ lat: number; lng: number } | null> => {
+    if (!spot) return null;
+    let lat, lng;
+    if (spot.lat !== undefined && spot.lng !== undefined) {
+      lat = Number(spot.lat);
+      lng = Number(spot.lng);
+    } else if (
+      Array.isArray(spot.coordinates) &&
+      spot.coordinates.length === 2
+    ) {
+      lng = Number(spot.coordinates[0]);
+      lat = Number(spot.coordinates[1]);
+    }
+    if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
+      if (Math.abs(lat) > 90 && Math.abs(lng) <= 90) [lat, lng] = [lng, lat];
+      return { lat, lng };
+    }
+    // Google Search Fallback... (省略以節省篇幅，邏輯同前一版)
+    if (!google.maps.places || !google.maps.places.Place) return null;
+    try {
+      // @ts-ignore
+      const { places } = await google.maps.places.Place.searchByText({
+        textQuery: spot.name,
+        fields: ["location"],
+        language: "zh-TW",
+      });
+      if (places?.[0]?.location) {
+        return { lat: places[0].location.lat(), lng: places[0].location.lng() };
+      }
+    } catch (e) {
+      console.error("解析位置失敗:", e);
+    }
+    return null;
+  };
+
+  const findNearestStation = async (location: { lat: number; lng: number }) => {
+    // (省略以節省篇幅，邏輯同前一版)
+    if (!google.maps.places || !google.maps.places.Place) return null;
+    try {
+      // @ts-ignore
+      const { places } = await google.maps.places.Place.searchNearby({
+        locationRestriction: { center: location, radius: 1000 },
+        includedTypes: ["transit_station", "train_station", "subway_station"],
+        maxResultCount: 1,
+        fields: ["location", "displayName"],
+        language: "zh-TW",
+      });
+      if (places && places.length > 0 && places[0].location) {
+        return { lat: places[0].location.lat(), lng: places[0].location.lng() };
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+    return null;
+  };
+
+  useEffect(() => {
+    if (!map || !focusedSpot) return;
+    const moveMap = async () => {
+      const loc = await resolveLocation(focusedSpot);
+      if (loc) {
+        map.panTo(loc);
+        map.setZoom(15);
+      }
+    };
+    moveMap();
+  }, [focusedSpot, map]);
+
+  useEffect(() => {
+    if (!isLoaded || !map) return;
+    if (!spots || spots.length === 0) {
+      clearMarkers();
+      setRouteSegments([]);
+      if (onDurationsChange) onDurationsChange({}); // 清空時間
+      return;
+    }
+
+    const directionsService = new google.maps.DirectionsService();
+
+    const updateMap = async () => {
+      clearMarkers();
+      const { AdvancedMarkerElement, PinElement } =
+        (await google.maps.importLibrary("marker")) as any;
+
+      const spotCoords = await Promise.all(
+        spots.map(async (spot, i) => {
+          const loc = await resolveLocation(spot);
+          if (loc) {
+            const isFocused = focusedSpot?.id === spot.id;
+            const pin = new PinElement({
+              glyphText: (i + 1).toString(),
+              background: isFocused ? "#EA580C" : "#F97316",
+              borderColor: "white",
+              glyphColor: "white",
+              scale: isFocused ? 1.4 : 1.0,
+            });
+            const marker = new AdvancedMarkerElement({
+              map,
+              position: loc,
+              content: pin.element,
+              title: spot.name,
+              zIndex: isFocused ? 999 : 1,
+            });
+            marker.addListener("click", () => {
+              map.panTo(loc);
+              map.setZoom(15);
+            });
+            markersRef.current.push(marker);
+          }
+          return loc;
+        })
+      );
+
+      if (spots.length < 2) {
+        setRouteSegments([]);
+        if (onDurationsChange) onDurationsChange({});
+        return;
+      }
+
+      const allSegments: any[] = [];
+      const newDurations: { [key: string]: string } = {}; // ✨ 收集時間
+
+      for (let i = 1; i < spots.length; i++) {
+        const startLoc = spotCoords[i - 1];
+        const endLoc = spotCoords[i];
+        const mode = spots[i].transport_mode;
+
+        if (!startLoc || !endLoc) continue;
+
+        // 封裝一下 Route 請求，方便抓取 duration
+        const getRoute = (
+          origin: any,
+          destination: any,
+          mode: google.maps.TravelMode
+        ) => {
+          return new Promise<any>((resolve) => {
+            directionsService.route(
+              { origin, destination, travelMode: mode },
+              (result, status) => {
+                if (status === "OK") resolve(result);
+                else resolve(null);
+              }
+            );
+          });
+        };
+
+        let result = null;
+        let segmentId = spots[i].id;
+
+        if (mode === "TRANSIT") {
+          const stA = await findNearestStation(startLoc);
+          const stB = await findNearestStation(endLoc);
+          if (stA && stB) {
+            // 這裡為了簡化，地圖上只畫 "走路去車站" + "車站走去景點" 的線
+            // 但時間我們算這三段的總和有點複雜，這裡我們做個取捨：
+            // 直接抓「起點到終點」的大眾運輸時間給列表顯示，但地圖畫細節
+
+            // 1. 抓取給「顯示用」的總時間 (起點->終點 TRANSIT)
+            const transitFullRoute = await getRoute(
+              startLoc,
+              endLoc,
+              google.maps.TravelMode.TRANSIT
+            );
+            if (transitFullRoute?.routes[0]?.legs[0]?.duration?.text) {
+              newDurations[segmentId] =
+                transitFullRoute.routes[0].legs[0].duration.text;
+            }
+
+            // 2. 畫地圖用的線 (Walking)
+            const leg1 = await getRoute(
+              startLoc,
+              stA,
+              google.maps.TravelMode.WALKING
+            );
+            const leg2 = await getRoute(
+              stB,
+              endLoc,
+              google.maps.TravelMode.WALKING
+            );
+            if (leg1) allSegments.push({ result: leg1, id: `${segmentId}-1` });
+            if (leg2) allSegments.push({ result: leg2, id: `${segmentId}-2` });
+          } else {
+            // Fallback
+            result = await getRoute(
+              startLoc,
+              endLoc,
+              google.maps.TravelMode.WALKING
+            );
+          }
+        } else {
+          // WALKING
+          result = await getRoute(
+            startLoc,
+            endLoc,
+            google.maps.TravelMode.WALKING
+          );
+        }
+
+        if (result) {
+          allSegments.push({ result, id: segmentId });
+          // ✨ 抓取時間文字 (例如 "15 mins")
+          if (result.routes[0]?.legs[0]?.duration?.text) {
+            newDurations[segmentId] = result.routes[0].legs[0].duration.text;
+          }
+        }
+      }
+
+      setRouteSegments(allSegments);
+      // ✨ 回傳時間給列表
+      if (onDurationsChange) onDurationsChange(newDurations);
+
+      if (!focusedSpot) {
+        const bounds = new google.maps.LatLngBounds();
+        let hasPoints = false;
+        spotCoords.forEach((loc) => {
+          if (loc) {
+            bounds.extend(loc);
+            hasPoints = true;
+          }
+        });
+        allSegments.forEach((seg: any) => {
+          if (seg?.result?.routes[0]?.bounds)
+            bounds.union(seg.result.routes[0].bounds);
+        });
+        if (hasPoints) {
+          setTimeout(() => {
+            map.fitBounds(bounds, { top: 50, right: 50, bottom: 50, left: 50 });
+          }, 100);
+        } else if (spotCoords[0]) {
+          map.setCenter(spotCoords[0]);
+          map.setZoom(15);
+        }
+      }
+    };
+
+    updateMap();
+  }, [spots, isLoaded, map, focusedSpot]);
+
   if (!isLoaded)
     return (
       <div className="w-full h-full bg-orange-50 animate-pulse rounded-[32px]" />
@@ -40,46 +281,31 @@ export default function MapComponent({
   return (
     <GoogleMap
       mapContainerStyle={containerStyle}
-      center={center}
-      zoom={14}
+      center={DEFAULT_CENTER}
+      zoom={15}
+      onLoad={onLoad}
+      onUnmount={onUnmount}
       options={{
-        styles: mapStyles,
         disableDefaultUI: true,
         zoomControl: true,
+        mapId: "e7677d27e908976c",
       }}
     >
-      {spots.map(
-        (spot) =>
-          spot.lat && (
-            <MarkerF
-              key={spot.id}
-              position={{ lat: spot.lat, lng: spot.lng }}
-              title={spot.name}
-              icon={{
-                url: "https://cdn-icons-png.flaticon.com/512/8124/8124921.png",
-                scaledSize: new window.google.maps.Size(40, 40),
-              }}
-            />
-          )
-      )}
-
-      {path.length > 1 && (
-        <Polyline
-          path={path}
+      {routeSegments.map((segment) => (
+        <DirectionsRenderer
+          key={segment.id}
+          directions={segment.result}
           options={{
-            strokeColor: "#F97316",
-            strokeOpacity: 0.8,
-            strokeWeight: 3,
-            icons: [
-              {
-                icon: { path: "M 0,-1 0,1", strokeOpacity: 1, scale: 2 },
-                offset: "0",
-                repeat: "10px",
-              },
-            ],
+            suppressMarkers: true,
+            preserveViewport: true,
+            polylineOptions: {
+              strokeColor: "#F97316",
+              strokeOpacity: 0.8,
+              strokeWeight: 4,
+            },
           }}
         />
-      )}
+      ))}
     </GoogleMap>
   );
 }

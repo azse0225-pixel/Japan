@@ -1,7 +1,6 @@
 "use server"; // 👈 將此檔案標註為伺服器 Actions
 
 import { supabase } from '@/lib/supabase';
-import { time } from 'console';
 import { revalidatePath } from 'next/cache';
 
 // 1. 取得旅程基本資料
@@ -80,7 +79,7 @@ export async function updateSpotsOrder(tripId: string, updatedSpots: any[], day:
 		lat: spot.lat,
 		lng: spot.lng,
 		note: spot.note,
-		time: spot.time, // 👈 確保時間在排序更新時也被保留
+		time: spot.time,
 		category: spot.category || 'spot'
 	}));
 	const { error } = await supabase.from('spots').upsert(updates);
@@ -166,6 +165,7 @@ export async function updateSpotTime(spotId: string, time: string) {
 		throw error;
 	}
 }
+
 // --- 13. 行前清單功能 ---
 
 // 取得清單
@@ -174,7 +174,7 @@ export async function getChecklist(tripId: string) {
 		.from('checklists')
 		.select('*')
 		.eq('trip_id', tripId)
-		.order('created_at', { ascending: true }); // 依照建立時間排序
+		.order('created_at', { ascending: true });
 
 	return data || [];
 }
@@ -198,6 +198,7 @@ export async function toggleChecklistItem(itemId: string, isChecked: boolean) {
 
 	if (error) throw error;
 }
+
 // 刪除項目
 export async function deleteChecklistItem(itemId: string) {
 	const { error } = await supabase
@@ -206,4 +207,92 @@ export async function deleteChecklistItem(itemId: string) {
 		.eq('id', itemId);
 
 	if (error) throw error;
+}
+
+// --- 14. 更新交通方式 ---
+export async function updateSpotTransportMode(spotId: string, mode: 'WALKING' | 'TRANSIT') {
+	const { error } = await supabase
+		.from('spots')
+		.update({ transport_mode: mode })
+		.eq('id', spotId);
+
+	if (error) throw error;
+}
+
+// --- 15. 更新預算與花費 ---
+export async function updateSpotCost(
+	spotId: string,
+	estimated: number,
+	actual: number
+) {
+	const { error } = await supabase
+		.from("spots")
+		.update({ estimated_cost: estimated, actual_cost: actual })
+		.eq("id", spotId);
+
+	if (error) console.error("更新費用失敗", error);
+}
+
+// --- 16. 批次更新順序 ---
+export async function updateSpotBatchOrder(
+	updates: { id: string; time: string }[]
+) {
+	const promises = updates.map((u) =>
+		supabase.from("spots").update({ time: u.time }).eq("id", u.id)
+	);
+
+	await Promise.all(promises);
+}
+
+// --- 17. 上傳附件 (票券收納) ---
+export async function uploadSpotAttachment(spotId: string, formData: FormData) {
+	const file = formData.get("file") as File;
+	if (!file) return;
+
+	// ❌ 移除: const supabase = createClient();
+	// ✅ 直接使用上方的 supabase
+	const fileName = `${spotId}/${Date.now()}-${file.name}`; // 檔名：ID/時間-檔名
+
+	// 1. 上傳到 Storage
+	const { data: uploadData, error: uploadError } = await supabase.storage
+		.from("trip-assets")
+		.upload(fileName, file);
+
+	if (uploadError) {
+		console.error("上傳失敗:", uploadError);
+		throw uploadError;
+	}
+
+	// 2. 取得公開連結
+	const { data: publicUrlData } = supabase.storage
+		.from("trip-assets")
+		.getPublicUrl(fileName);
+
+	const publicUrl = publicUrlData.publicUrl;
+
+	// 3. 更新資料庫 (將 URL 加入陣列)
+	// 先把舊的抓出來
+	const { data: spot } = await supabase.from("spots").select("attachments").eq("id", spotId).single();
+	const currentAttachments = spot?.attachments || [];
+	const newAttachments = [...currentAttachments, publicUrl];
+
+	const { error: dbError } = await supabase
+		.from("spots")
+		.update({ attachments: newAttachments })
+		.eq("id", spotId);
+
+	if (dbError) throw dbError;
+}
+
+// --- 18. 刪除附件 ---
+export async function deleteSpotAttachment(spotId: string, fileUrl: string) {
+	// ❌ 移除: const supabase = createClient();
+
+	// 1. 從資料庫陣列移除
+	const { data: spot } = await supabase.from("spots").select("attachments").eq("id", spotId).single();
+	const newAttachments = (spot?.attachments || []).filter((url: string) => url !== fileUrl);
+
+	await supabase.from("spots").update({ attachments: newAttachments }).eq("id", spotId);
+
+	// 2. (選做) 從 Storage 刪除檔案，這裡暫時略過，避免誤刪
 }
