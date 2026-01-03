@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import {
@@ -16,8 +16,12 @@ import {
   updateSpotTransportMode,
   updateSpotCost,
   updateSpotBatchOrder,
-  uploadSpotAttachment, // ✨ 新增
-  deleteSpotAttachment, // ✨ 新增
+  uploadSpotAttachment,
+  deleteSpotAttachment,
+  getTripMembers, // ✨ 新增
+  addTripMember, // ✨ 新增
+  deleteTripMember, // ✨ 新增
+  updateSpotSplit, // ✨ 新增
 } from "@/lib/actions/trip-actions";
 
 import { useJsApiLoader } from "@react-google-maps/api";
@@ -69,28 +73,33 @@ const formatMoney = (yen: number, rate: number) => {
   );
 };
 
-// SpotItem 元件 (新增票券功能)
+// --- SpotItem 元件 (新增分帳功能) ---
 function SpotItem({
   spot,
+  members, // ✨ 傳入成員名單
   onDelete,
   onNoteChange,
   onCategoryChange,
   onTimeChange,
   onSelect,
   onCostChange,
+  onSplitChange, // ✨ 處理分帳變更
   exchangeRate,
 }: any) {
   const [showCatMenu, setShowCatMenu] = useState(false);
   const [showCost, setShowCost] = useState(false);
-  const [showTickets, setShowTickets] = useState(false); // ✨ 控制票券展開
-  const [isUploading, setIsUploading] = useState(false); // ✨ 上傳狀態
+  const [showTickets, setShowTickets] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   const currentCat =
     CATEGORIES.find((c) => c.id === spot.category) || CATEGORIES[0];
   const twdEst = Math.floor((spot.estimated_cost || 0) * exchangeRate);
   const twdAct = Math.floor((spot.actual_cost || 0) * exchangeRate);
 
-  // 處理檔案上傳
+  // 取得目前「誰付錢」的名字
+  const payerName =
+    members.find((m: any) => m.id === spot.payer_id)?.name || "有人";
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     setIsUploading(true);
@@ -99,19 +108,32 @@ function SpotItem({
       const formData = new FormData();
       formData.append("file", file);
       await uploadSpotAttachment(spot.id, formData);
-      // Realtime 會自動更新畫面，這裡不需要手動 setSpots
     } catch (err) {
       console.error("上傳失敗", err);
-      alert("上傳失敗，請檢查網路或檔案大小");
+      alert("上傳失敗");
     } finally {
       setIsUploading(false);
     }
   };
 
-  // 處理刪除附件
   const handleDeleteAttachment = async (url: string) => {
     if (!confirm("確定要刪除這張附件嗎？")) return;
     await deleteSpotAttachment(spot.id, url);
+  };
+
+  // 處理分帳變更
+  const handlePayerChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    onSplitChange(spot.id, e.target.value, spot.involved_members || []);
+  };
+
+  const handleInvolvedChange = (memberId: string, isChecked: boolean) => {
+    let currentInvolved = spot.involved_members || [];
+    if (isChecked) {
+      currentInvolved = [...currentInvolved, memberId];
+    } else {
+      currentInvolved = currentInvolved.filter((id: string) => id !== memberId);
+    }
+    onSplitChange(spot.id, spot.payer_id, currentInvolved);
   };
 
   return (
@@ -199,7 +221,6 @@ function SpotItem({
       </div>
 
       <div className="mt-3 flex gap-2 items-center">
-        {/* 預算按鈕 */}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -214,7 +235,6 @@ function SpotItem({
         >
           $
         </button>
-        {/* ✨ 票券附件按鈕 */}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -236,11 +256,9 @@ function SpotItem({
         </button>
 
         <div className="flex-1 flex flex-col justify-center min-h-[40px]">
-          {/* ✨ 新增：手動加入 Label 標籤，樣式為極小字體灰色 */}
           <label className="text-[10px] text-slate-400 font-bold mb-0.5 ml-1">
-            備註:
+            備註 Note
           </label>
-
           <input
             type="text"
             value={spot.note || ""}
@@ -249,7 +267,6 @@ function SpotItem({
             placeholder="輸入備註 (例如: 必吃鬆餅...)"
             className="w-full bg-transparent border-b border-transparent hover:border-slate-200 focus:border-orange-300 text-sm text-slate-700 placeholder:text-slate-300 outline-none transition-colors py-1 pl-1"
           />
-
           {(spot.estimated_cost > 0 || spot.actual_cost > 0) && (
             <div className="flex gap-3 text-[10px] mt-1 pl-1">
               {spot.estimated_cost > 0 && (
@@ -258,8 +275,13 @@ function SpotItem({
                 </div>
               )}
               {spot.actual_cost > 0 && (
-                <div className="bg-emerald-50 px-2 py-0.5 rounded text-emerald-600 font-bold border border-emerald-100">
-                  實: {formatMoney(spot.actual_cost, exchangeRate)}
+                <div className="bg-emerald-50 px-2 py-0.5 rounded text-emerald-600 font-bold border border-emerald-100 flex items-center gap-1">
+                  <span>實: {formatMoney(spot.actual_cost, exchangeRate)}</span>
+                  {spot.payer_id && (
+                    <span className="text-[9px] bg-white px-1 rounded text-emerald-400">
+                      ({payerName})
+                    </span>
+                  )}
                 </div>
               )}
             </div>
@@ -267,7 +289,6 @@ function SpotItem({
         </div>
       </div>
 
-      {/* 預算面板 */}
       {showCost && (
         <div
           className="mt-3 grid grid-cols-2 gap-3 animate-in slide-in-from-top-2 fade-in duration-200 cursor-default"
@@ -327,10 +348,64 @@ function SpotItem({
               />
             </div>
           </div>
+
+          {/* ✨ 分帳區塊：只有當有「實支」且有「成員」時才顯示 */}
+          {spot.actual_cost > 0 && members.length > 0 && (
+            <div className="col-span-2 bg-indigo-50 rounded-xl p-3 border border-indigo-100">
+              <div className="flex items-center gap-2 mb-2">
+                <label className="text-[10px] text-indigo-500 font-bold uppercase">
+                  誰先墊錢?
+                </label>
+                <select
+                  value={spot.payer_id || ""}
+                  onChange={handlePayerChange}
+                  className="text-xs bg-white border border-indigo-200 rounded px-2 py-1 outline-none text-indigo-700 font-bold"
+                >
+                  <option value="">(選擇成員)</option>
+                  {members.map((m: any) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] text-indigo-500 font-bold uppercase mb-1">
+                  分給誰? (沒選=平分)
+                </label>
+                <div className="flex gap-2 flex-wrap">
+                  {members.map((m: any) => {
+                    const isChecked = (spot.involved_members || []).includes(
+                      m.id
+                    );
+                    return (
+                      <label
+                        key={m.id}
+                        className={`flex items-center gap-1 px-2 py-1 rounded text-xs cursor-pointer transition-colors ${
+                          isChecked
+                            ? "bg-indigo-500 text-white"
+                            : "bg-white text-indigo-400 border border-indigo-100"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="hidden"
+                          checked={isChecked}
+                          onChange={(e) =>
+                            handleInvolvedChange(m.id, e.target.checked)
+                          }
+                        />
+                        {m.name}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* ✨ 票券收納盒面板 */}
       {showTickets && (
         <div
           className="mt-3 bg-blue-50 rounded-2xl p-4 animate-in slide-in-from-top-2 fade-in duration-200 cursor-default"
@@ -363,7 +438,6 @@ function SpotItem({
                   key={idx}
                   className="relative group/img aspect-square bg-white rounded-xl overflow-hidden border border-blue-100 shadow-sm"
                 >
-                  {/* 點擊開啟大圖 */}
                   <a
                     href={url}
                     target="_blank"
@@ -376,7 +450,6 @@ function SpotItem({
                       className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
                     />
                   </a>
-                  {/* 刪除按鈕 */}
                   <button
                     onClick={() => handleDeleteAttachment(url)}
                     className="absolute top-1 right-1 bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs opacity-0 group-hover/img:opacity-100 transition-opacity shadow-md"
@@ -393,12 +466,10 @@ function SpotItem({
   );
 }
 
-// ... 這裡以下的 ItineraryList 保持您之前最新的「黃金版本」邏輯，不需要更動 ...
-// ... 只是要把 SpotItem 換成上面這個新版的 ...
-// ... 我為了完整性還是把下面貼出來 ...
-
+// --- 主要元件 ---
 export default function ItineraryList({ tripId }: { tripId: string }) {
   const [spots, setSpots] = useState<any[]>([]);
+  const [members, setMembers] = useState<any[]>([]); // ✨ 成員狀態
   const [inputValue, setInputValue] = useState("");
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [pendingLocation, setPendingLocation] = useState<{
@@ -414,6 +485,10 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [targetDeleteDay, setTargetDeleteDay] = useState<number | null>(null);
   const [isChecklistOpen, setIsChecklistOpen] = useState(false);
+
+  // ✨ 新增：成員管理 Modal
+  const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
+  const [newMemberName, setNewMemberName] = useState("");
 
   const [selectedCategory, setSelectedCategory] = useState("spot");
   const [newSpotTime, setNewSpotTime] = useState("09:00");
@@ -433,6 +508,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     version: "weekly",
   });
 
+  // 1. 抓取匯率
   useEffect(() => {
     fetch("https://api.exchangerate-api.com/v4/latest/JPY")
       .then((res) => res.json())
@@ -443,6 +519,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
       .catch((err) => console.error("匯率抓取失敗", err));
   }, []);
 
+  // 2. Autocomplete
   useEffect(() => {
     if (!isLoaded || inputValue.length < 2) {
       setSuggestions([]);
@@ -472,13 +549,20 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     return () => clearTimeout(timer);
   }, [inputValue, isLoaded]);
 
+  // 3. 初始化載入 (包含成員)
   const initLoad = async (resetFocus = true) => {
     if (resetFocus) setFocusedSpot(null);
     setIsLoading(true);
 
-    const tripData = await getTripData(tripId);
-    let currentDayCount = 1;
+    // 平行載入基本資料
+    const [tripData, memberData] = await Promise.all([
+      getTripData(tripId),
+      getTripMembers(tripId),
+    ]);
 
+    setMembers(memberData || []);
+
+    let currentDayCount = 1;
     if (tripData?.days_count) {
       currentDayCount = tripData.days_count;
       setDays(Array.from({ length: tripData.days_count }, (_, i) => i + 1));
@@ -512,9 +596,10 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     initLoad(true);
   }, [tripId, selectedDay]);
 
+  // 4. Realtime (監聽 spots 和 trip_members)
   useEffect(() => {
     const channel = supabase
-      .channel("realtime spots")
+      .channel("realtime updates")
       .on(
         "postgres_changes",
         {
@@ -523,7 +608,19 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
           table: "spots",
           filter: `trip_id=eq.${tripId}`,
         },
-        (payload) => {
+        () => {
+          setTimeout(() => initLoad(false), 500);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "trip_members",
+          filter: `trip_id=eq.${tripId}`,
+        },
+        () => {
           setTimeout(() => initLoad(false), 500);
         }
       )
@@ -534,6 +631,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     };
   }, [tripId, selectedDay]);
 
+  // 處理下載
   const handleDownload = async () => {
     if (!exportRef.current) return;
     const btn = document.getElementById("download-btn");
@@ -623,6 +721,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     }
   };
 
+  // Handlers
   const handleCostChange = (spotId: string, est: number, act: number) => {
     setSpots((prev) =>
       prev.map((s) =>
@@ -635,6 +734,24 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
       () => updateSpotCost(spotId, est, act),
       800
     );
+  };
+
+  // ✨ 分帳 Handler
+  const handleSplitChange = async (
+    spotId: string,
+    payerId: string | null,
+    involved: string[]
+  ) => {
+    // 先更新 UI
+    setSpots((prev) =>
+      prev.map((s) =>
+        s.id === spotId
+          ? { ...s, payer_id: payerId, involved_members: involved }
+          : s
+      )
+    );
+    // 寫入後端
+    await updateSpotSplit(spotId, payerId, involved);
   };
 
   const handleNoteChange = (spotId: string, newNote: string) => {
@@ -735,6 +852,43 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     setIsLoading(false);
   };
 
+  // ✨ 結算邏輯
+  const settlement = useMemo(() => {
+    if (members.length === 0) return [];
+
+    // 1. 初始化每個人的餘額 (正: 別人欠我, 負: 我欠別人)
+    const balances: { [key: string]: number } = {};
+    members.forEach((m) => (balances[m.id] = 0));
+
+    spots.forEach((spot) => {
+      const cost = spot.actual_cost || 0;
+      if (cost === 0 || !spot.payer_id) return;
+
+      // 誰付的錢
+      balances[spot.payer_id] = (balances[spot.payer_id] || 0) + cost;
+
+      // 誰要分攤
+      const involved =
+        spot.involved_members && spot.involved_members.length > 0
+          ? spot.involved_members
+          : members.map((m) => m.id); // 沒選就全分
+
+      const splitAmount = cost / involved.length;
+      involved.forEach((uid: string) => {
+        balances[uid] = (balances[uid] || 0) - splitAmount;
+      });
+    });
+
+    // 2. 轉換成易讀格式
+    return members
+      .map((m) => ({
+        id: m.id,
+        name: m.name,
+        balance: balances[m.id] || 0,
+      }))
+      .sort((a, b) => b.balance - a.balance);
+  }, [spots, members]);
+
   const totalBudget = spots.reduce(
     (sum, s) => sum + (s.estimated_cost || 0),
     0
@@ -743,7 +897,6 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
 
   return (
     <div className="w-full pb-20">
-      {/* 匯出區塊 (維持我們剛剛改好的垂直排列) */}
       <div className="fixed left-[-9999px]">
         <div
           ref={exportRef}
@@ -752,7 +905,6 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
           <h1 className="text-4xl font-black mb-4 text-orange-600">
             Day {selectedDay} 行程表
           </h1>
-
           <div className="flex justify-between mb-6 text-slate-500 font-bold text-lg border-b-2 border-orange-200 pb-4">
             <span>{tripId}</span>
             <div className="flex gap-6">
@@ -770,7 +922,6 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
               </div>
             </div>
           </div>
-
           <div className="space-y-4">
             {spots.map((spot) => (
               <div
@@ -789,7 +940,6 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                       📝 {spot.note}
                     </div>
                   )}
-
                   {(spot.estimated_cost > 0 || spot.actual_cost > 0) && (
                     <div className="flex flex-col gap-1 mt-2 p-3 bg-slate-50 rounded-xl w-fit">
                       {spot.estimated_cost > 0 && (
@@ -877,6 +1027,114 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
         </div>
       )}
 
+      {/* ✨ 成員管理與結算 Modal */}
+      {isMemberModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-6">
+          <div
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            onClick={() => setIsMemberModalOpen(false)}
+          />
+          <div className="relative bg-white rounded-t-[40px] sm:rounded-[40px] p-8 w-full max-w-sm shadow-2xl animate-in slide-in-from-bottom sm:zoom-in duration-300 h-[80vh] flex flex-col">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-black text-slate-800">
+                📊 分帳助手
+              </h3>
+              <button
+                onClick={() => setIsMemberModalOpen(false)}
+                className="bg-slate-100 p-2 rounded-full"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* 1. 成員管理 */}
+            <div className="mb-6">
+              <h4 className="text-sm font-bold text-slate-400 uppercase mb-2">
+                Trip Members
+              </h4>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {members.map((m) => (
+                  <span
+                    key={m.id}
+                    className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-sm font-bold flex items-center gap-2"
+                  >
+                    {m.name}
+                    <button
+                      onClick={() => {
+                        if (confirm("刪除此成員?"))
+                          deleteTripMember(m.id, tripId).then(() => initLoad());
+                      }}
+                      className="text-slate-400 hover:text-red-500"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="輸入名字 (例如: 金笨)"
+                  value={newMemberName}
+                  onChange={(e) => setNewMemberName(e.target.value)}
+                  className="bg-slate-50 border-none rounded-xl px-4 py-2 text-sm flex-1"
+                />
+                <button
+                  onClick={() => {
+                    if (newMemberName) {
+                      addTripMember(tripId, newMemberName).then(() =>
+                        initLoad()
+                      );
+                      setNewMemberName("");
+                    }
+                  }}
+                  className="bg-indigo-500 text-white px-4 py-2 rounded-xl font-bold text-sm"
+                >
+                  + 新增
+                </button>
+              </div>
+            </div>
+
+            {/* 2. 結算報表 */}
+            <div className="flex-1 overflow-y-auto bg-slate-50 rounded-2xl p-4 border border-slate-100">
+              <h4 className="text-sm font-bold text-slate-400 uppercase mb-3">
+                Settlement Report
+              </h4>
+              {members.length === 0 ? (
+                <div className="text-center text-slate-400 text-xs mt-10">
+                  請先新增成員
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {settlement.map((m) => (
+                    <div
+                      key={m.id}
+                      className="flex justify-between items-center bg-white p-3 rounded-xl shadow-sm"
+                    >
+                      <span className="font-bold text-slate-700">{m.name}</span>
+                      <div
+                        className={`font-mono font-bold ${
+                          m.balance >= 0 ? "text-green-500" : "text-red-500"
+                        }`}
+                      >
+                        {m.balance >= 0
+                          ? `收回 ¥${m.balance.toLocaleString()}`
+                          : `支付 ¥${Math.abs(m.balance).toLocaleString()}`}
+                      </div>
+                    </div>
+                  ))}
+                  <div className="mt-4 pt-4 border-t border-slate-200">
+                    <p className="text-xs text-slate-400 text-center">
+                      * 負數代表需要拿出錢，正數代表應該收回錢
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="relative h-[220px] w-full bg-orange-100 rounded-t-[40px] overflow-hidden border-b-4 border-white">
         <img
           src="/images/header.jpg"
@@ -951,7 +1209,10 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                 <div>
                   <h2 className="text-xl font-black">今日計畫</h2>
-                  <div className="flex flex-col gap-1 mt-2 text-xs font-bold text-slate-500 bg-slate-50 p-3 rounded-xl">
+                  <div
+                    className="flex flex-col gap-1 mt-2 text-xs font-bold text-slate-500 bg-slate-50 p-3 rounded-xl cursor-pointer hover:bg-slate-100 transition-colors"
+                    onClick={() => setIsMemberModalOpen(true)} // ✨ 點擊開啟分帳面板
+                  >
                     <div className="flex justify-between w-full sm:w-64">
                       <span>💰 總預算:</span>
                       <span>
@@ -963,6 +1224,9 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                       <span>
                         {formatMoney(totalActual, exchangeRate) || "¥0"}
                       </span>
+                    </div>
+                    <div className="mt-1 pt-1 border-t border-slate-200 text-center text-indigo-400">
+                      📊 點擊查看分帳 / 管理成員
                     </div>
                   </div>
                 </div>
@@ -1030,6 +1294,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                         )}
                         <SpotItem
                           spot={spot}
+                          members={members} // ✨ 傳遞成員
                           onSelect={() => {
                             console.log("Spot selected:", spot.name);
                             setFocusedSpot(spot);
@@ -1041,6 +1306,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                           onTimeChange={handleTimeChange}
                           onCategoryChange={handleCategoryChange}
                           onCostChange={handleCostChange}
+                          onSplitChange={handleSplitChange} // ✨ 傳遞分帳函式
                           exchangeRate={exchangeRate}
                         />
                       </div>

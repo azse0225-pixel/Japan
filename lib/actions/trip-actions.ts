@@ -296,3 +296,62 @@ export async function deleteSpotAttachment(spotId: string, fileUrl: string) {
 
 	// 2. (選做) 從 Storage 刪除檔案，這裡暫時略過，避免誤刪
 }
+// ... (前面保持不變)
+
+// --- 19. 分帳成員管理 (Expense Splitter) ---
+
+// 取得成員名單
+export async function getTripMembers(tripId: string) {
+	const { data, error } = await supabase
+		.from("trip_members")
+		.select("*")
+		.eq("trip_id", tripId)
+		.order("created_at", { ascending: true });
+
+	return data || [];
+}
+
+// 新增成員
+export async function addTripMember(tripId: string, name: string) {
+	const { error } = await supabase
+		.from("trip_members")
+		.insert([{ trip_id: tripId, name }]);
+
+	if (error) throw error;
+	revalidatePath(`/trip/${tripId}`);
+}
+
+// 刪除成員
+export async function deleteTripMember(memberId: string, tripId: string) {
+	const { error } = await supabase
+		.from("trip_members")
+		.delete()
+		.eq("id", memberId);
+
+	if (error) throw error;
+	revalidatePath(`/trip/${tripId}`);
+}
+
+// --- 20. 更新分帳資訊 (誰付錢 / 分給誰) ---
+export async function updateSpotSplit(
+	spotId: string,
+	payerId: string | null,
+	involvedMembers: string[] // 誰要分攤的 ID 陣列
+) {
+	// 如果 payerId 是空字串，轉成 null
+	const finalPayerId = payerId === "" ? null : payerId;
+
+	const { error } = await supabase
+		.from("spots")
+		.update({
+			payer_id: finalPayerId,
+			involved_members: involvedMembers
+		})
+		.eq("id", spotId);
+
+	if (error) {
+		console.error("更新分帳失敗:", error);
+		throw error;
+	}
+	// 不需 revalidatePath，前端即時更新
+}
