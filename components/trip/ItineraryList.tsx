@@ -18,10 +18,10 @@ import {
   updateSpotBatchOrder,
   uploadSpotAttachment,
   deleteSpotAttachment,
-  getTripMembers, // ✨ 新增
-  addTripMember, // ✨ 新增
-  deleteTripMember, // ✨ 新增
-  updateSpotSplit, // ✨ 新增
+  getTripMembers,
+  addTripMember,
+  deleteTripMember,
+  updateSpotSplit,
 } from "@/lib/actions/trip-actions";
 
 import { useJsApiLoader } from "@react-google-maps/api";
@@ -73,17 +73,18 @@ const formatMoney = (yen: number, rate: number) => {
   );
 };
 
-// --- SpotItem 元件 (新增分帳功能) ---
+// --- SpotItem 元件 ---
 function SpotItem({
   spot,
-  members, // ✨ 傳入成員名單
+  members,
   onDelete,
   onNoteChange,
   onCategoryChange,
   onTimeChange,
   onSelect,
   onCostChange,
-  onSplitChange, // ✨ 處理分帳變更
+  onSplitChange,
+  onAttachmentChange,
   exchangeRate,
 }: any) {
   const [showCatMenu, setShowCatMenu] = useState(false);
@@ -95,8 +96,6 @@ function SpotItem({
     CATEGORIES.find((c) => c.id === spot.category) || CATEGORIES[0];
   const twdEst = Math.floor((spot.estimated_cost || 0) * exchangeRate);
   const twdAct = Math.floor((spot.actual_cost || 0) * exchangeRate);
-
-  // 取得目前「誰付錢」的名字
   const payerName =
     members.find((m: any) => m.id === spot.payer_id)?.name || "有人";
 
@@ -107,7 +106,13 @@ function SpotItem({
       const file = e.target.files[0];
       const formData = new FormData();
       formData.append("file", file);
-      await uploadSpotAttachment(spot.id, formData);
+
+      const publicUrl = await uploadSpotAttachment(spot.id, formData);
+
+      if (publicUrl) {
+        const newAttachments = [...(spot.attachments || []), publicUrl];
+        onAttachmentChange(spot.id, newAttachments);
+      }
     } catch (err) {
       console.error("上傳失敗", err);
       alert("上傳失敗");
@@ -118,10 +123,13 @@ function SpotItem({
 
   const handleDeleteAttachment = async (url: string) => {
     if (!confirm("確定要刪除這張附件嗎？")) return;
+    const newAttachments = (spot.attachments || []).filter(
+      (u: string) => u !== url
+    );
+    onAttachmentChange(spot.id, newAttachments);
     await deleteSpotAttachment(spot.id, url);
   };
 
-  // 處理分帳變更
   const handlePayerChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     onSplitChange(spot.id, e.target.value, spot.involved_members || []);
   };
@@ -267,18 +275,20 @@ function SpotItem({
             placeholder="輸入備註 (例如: 必吃鬆餅...)"
             className="w-full bg-transparent border-b border-transparent hover:border-slate-200 focus:border-orange-300 text-sm text-slate-700 placeholder:text-slate-300 outline-none transition-colors py-1 pl-1"
           />
+
+          {/* ⚠️ 修改重點：這裡加入了 flex-col sm:flex-row 讓手機版強制垂直排列 */}
           {(spot.estimated_cost > 0 || spot.actual_cost > 0) && (
-            <div className="flex gap-3 text-[10px] mt-1 pl-1">
+            <div className="flex flex-col sm:flex-row gap-1 sm:gap-3 text-[10px] mt-1 pl-1">
               {spot.estimated_cost > 0 && (
-                <div className="bg-slate-50 px-2 py-0.5 rounded text-slate-500">
+                <div className="bg-slate-50 px-2 py-0.5 rounded text-slate-500 w-fit">
                   預: {formatMoney(spot.estimated_cost, exchangeRate)}
                 </div>
               )}
               {spot.actual_cost > 0 && (
-                <div className="bg-emerald-50 px-2 py-0.5 rounded text-emerald-600 font-bold border border-emerald-100 flex items-center gap-1">
+                <div className="bg-emerald-50 px-2 py-0.5 rounded text-emerald-600 font-bold border border-emerald-100 flex items-center gap-1 w-fit">
                   <span>實: {formatMoney(spot.actual_cost, exchangeRate)}</span>
                   {spot.payer_id && (
-                    <span className="text-[9px] bg-white px-1 rounded text-emerald-400">
+                    <span className="text-[9px] bg-white px-1 rounded text-emerald-400 whitespace-nowrap">
                       ({payerName})
                     </span>
                   )}
@@ -349,7 +359,6 @@ function SpotItem({
             </div>
           </div>
 
-          {/* ✨ 分帳區塊：只有當有「實支」且有「成員」時才顯示 */}
           {spot.actual_cost > 0 && members.length > 0 && (
             <div className="col-span-2 bg-indigo-50 rounded-xl p-3 border border-indigo-100">
               <div className="flex items-center gap-2 mb-2">
@@ -469,7 +478,7 @@ function SpotItem({
 // --- 主要元件 ---
 export default function ItineraryList({ tripId }: { tripId: string }) {
   const [spots, setSpots] = useState<any[]>([]);
-  const [members, setMembers] = useState<any[]>([]); // ✨ 成員狀態
+  const [members, setMembers] = useState<any[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [pendingLocation, setPendingLocation] = useState<{
@@ -486,7 +495,6 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
   const [targetDeleteDay, setTargetDeleteDay] = useState<number | null>(null);
   const [isChecklistOpen, setIsChecklistOpen] = useState(false);
 
-  // ✨ 新增：成員管理 Modal
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
   const [newMemberName, setNewMemberName] = useState("");
 
@@ -508,7 +516,6 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     version: "weekly",
   });
 
-  // 1. 抓取匯率
   useEffect(() => {
     fetch("https://api.exchangerate-api.com/v4/latest/JPY")
       .then((res) => res.json())
@@ -519,7 +526,6 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
       .catch((err) => console.error("匯率抓取失敗", err));
   }, []);
 
-  // 2. Autocomplete
   useEffect(() => {
     if (!isLoaded || inputValue.length < 2) {
       setSuggestions([]);
@@ -549,12 +555,10 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     return () => clearTimeout(timer);
   }, [inputValue, isLoaded]);
 
-  // 3. 初始化載入 (包含成員)
   const initLoad = async (resetFocus = true) => {
     if (resetFocus) setFocusedSpot(null);
     setIsLoading(true);
 
-    // 平行載入基本資料
     const [tripData, memberData] = await Promise.all([
       getTripData(tripId),
       getTripMembers(tripId),
@@ -596,7 +600,6 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     initLoad(true);
   }, [tripId, selectedDay]);
 
-  // 4. Realtime (監聽 spots 和 trip_members)
   useEffect(() => {
     const channel = supabase
       .channel("realtime updates")
@@ -631,7 +634,6 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     };
   }, [tripId, selectedDay]);
 
-  // 處理下載
   const handleDownload = async () => {
     if (!exportRef.current) return;
     const btn = document.getElementById("download-btn");
@@ -721,7 +723,6 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     }
   };
 
-  // Handlers
   const handleCostChange = (spotId: string, est: number, act: number) => {
     setSpots((prev) =>
       prev.map((s) =>
@@ -736,13 +737,11 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     );
   };
 
-  // ✨ 分帳 Handler
   const handleSplitChange = async (
     spotId: string,
     payerId: string | null,
     involved: string[]
   ) => {
-    // 先更新 UI
     setSpots((prev) =>
       prev.map((s) =>
         s.id === spotId
@@ -750,8 +749,15 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
           : s
       )
     );
-    // 寫入後端
     await updateSpotSplit(spotId, payerId, involved);
+  };
+
+  const handleAttachmentChange = (spotId: string, newAttachments: string[]) => {
+    setSpots((prev) =>
+      prev.map((s) =>
+        s.id === spotId ? { ...s, attachments: newAttachments } : s
+      )
+    );
   };
 
   const handleNoteChange = (spotId: string, newNote: string) => {
@@ -852,11 +858,9 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     setIsLoading(false);
   };
 
-  // ✨ 結算邏輯
   const settlement = useMemo(() => {
     if (members.length === 0) return [];
 
-    // 1. 初始化每個人的餘額 (正: 別人欠我, 負: 我欠別人)
     const balances: { [key: string]: number } = {};
     members.forEach((m) => (balances[m.id] = 0));
 
@@ -864,28 +868,19 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
       const cost = spot.actual_cost || 0;
       if (cost === 0 || !spot.payer_id) return;
 
-      // 誰付的錢
       balances[spot.payer_id] = (balances[spot.payer_id] || 0) + cost;
-
-      // 誰要分攤
       const involved =
         spot.involved_members && spot.involved_members.length > 0
           ? spot.involved_members
-          : members.map((m) => m.id); // 沒選就全分
-
+          : members.map((m) => m.id);
       const splitAmount = cost / involved.length;
       involved.forEach((uid: string) => {
         balances[uid] = (balances[uid] || 0) - splitAmount;
       });
     });
 
-    // 2. 轉換成易讀格式
     return members
-      .map((m) => ({
-        id: m.id,
-        name: m.name,
-        balance: balances[m.id] || 0,
-      }))
+      .map((m) => ({ id: m.id, name: m.name, balance: balances[m.id] || 0 }))
       .sort((a, b) => b.balance - a.balance);
   }, [spots, members]);
 
@@ -1027,7 +1022,6 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
         </div>
       )}
 
-      {/* ✨ 成員管理與結算 Modal */}
       {isMemberModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-6">
           <div
@@ -1047,7 +1041,6 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
               </button>
             </div>
 
-            {/* 1. 成員管理 */}
             <div className="mb-6">
               <h4 className="text-sm font-bold text-slate-400 uppercase mb-2">
                 Trip Members
@@ -1095,7 +1088,6 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
               </div>
             </div>
 
-            {/* 2. 結算報表 */}
             <div className="flex-1 overflow-y-auto bg-slate-50 rounded-2xl p-4 border border-slate-100">
               <h4 className="text-sm font-bold text-slate-400 uppercase mb-3">
                 Settlement Report
@@ -1211,7 +1203,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                   <h2 className="text-xl font-black">今日計畫</h2>
                   <div
                     className="flex flex-col gap-1 mt-2 text-xs font-bold text-slate-500 bg-slate-50 p-3 rounded-xl cursor-pointer hover:bg-slate-100 transition-colors"
-                    onClick={() => setIsMemberModalOpen(true)} // ✨ 點擊開啟分帳面板
+                    onClick={() => setIsMemberModalOpen(true)}
                   >
                     <div className="flex justify-between w-full sm:w-64">
                       <span>💰 總預算:</span>
@@ -1294,7 +1286,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                         )}
                         <SpotItem
                           spot={spot}
-                          members={members} // ✨ 傳遞成員
+                          members={members}
                           onSelect={() => {
                             console.log("Spot selected:", spot.name);
                             setFocusedSpot(spot);
@@ -1306,7 +1298,8 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                           onTimeChange={handleTimeChange}
                           onCategoryChange={handleCategoryChange}
                           onCostChange={handleCostChange}
-                          onSplitChange={handleSplitChange} // ✨ 傳遞分帳函式
+                          onSplitChange={handleSplitChange}
+                          onAttachmentChange={handleAttachmentChange}
                           exchangeRate={exchangeRate}
                         />
                       </div>

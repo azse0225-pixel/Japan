@@ -282,6 +282,7 @@ export async function uploadSpotAttachment(spotId: string, formData: FormData) {
 		.eq("id", spotId);
 
 	if (dbError) throw dbError;
+	return publicUrl;
 }
 
 // --- 18. 刪除附件 ---
