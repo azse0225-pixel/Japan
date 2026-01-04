@@ -132,7 +132,7 @@ export default function ChecklistModal({ tripId, isOpen, onClose }: any) {
                   className={`flex-1 font-bold text-sm transition-all ${
                     item.is_checked
                       ? "text-slate-400 line-through decoration-2"
-                      : "text-slate-700"
+                      : "text-slate-900"
                   }`}
                 >
                   {item.content}
@@ -159,7 +159,7 @@ export default function ChecklistModal({ tripId, isOpen, onClose }: any) {
               onKeyDown={(e) => e.key === "Enter" && handleAdd()}
               placeholder="新增項目 (例如: 買網卡)..."
               // text-base 防止 iOS 自動放大頁面
-              className="flex-1 px-4 py-3 rounded-xl border-none outline-none focus:ring-2 focus:ring-orange-300 font-bold text-sm text-base"
+              className="flex-1 px-4 py-3 rounded-xl border-none outline-none focus:ring-2 focus:ring-orange-300 font-bold text-base text-slate-900 bg-white placeholder:text-slate-400"
               autoFocus={!/Mobi|Android/i.test(navigator.userAgent)} // 手機版不自動 focus，避免鍵盤一打開就跳出來擋住畫面
             />
             <button

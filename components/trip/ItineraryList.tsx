@@ -1532,7 +1532,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                       placeholder={`搜尋想去的${
                         tripData?.country_code === "JP" ? "日本" : "地點"
                       }景點...`}
-                      className="w-full h-[56px] px-5 rounded-2xl bg-white border-none outline-none focus:ring-2 focus:ring-orange-400 font-bold shadow-sm"
+                      className="w-full h-[56px] px-5 rounded-2xl bg-white border-none outline-none focus:ring-2 focus:ring-orange-400 font-bold shadow-sm text-slate-900 placeholder:text-slate-400"
                     />
                     {suggestions.length > 0 && (
                       <div className="absolute left-0 right-0 top-[60px] bg-white border border-slate-100 rounded-2xl shadow-2xl z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2">
