@@ -533,7 +533,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
   }, []);
 
   useEffect(() => {
-    if (!isLoaded || inputValue.length < 2) {
+    if (!isLoaded || inputValue.length < 2 || pendingLocation) {
       setSuggestions([]);
       return;
     }
@@ -716,6 +716,16 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
         cacheBust: true,
         backgroundColor: "#fff7ed",
         pixelRatio: 2,
+        filter: (node) => {
+          if (
+            node.tagName === "LINK" &&
+            node.getAttribute("href")?.includes("fonts.googleapis.com")
+          ) {
+            return false;
+          }
+          return true;
+        },
+        skipFonts: true,
       });
       const link = document.createElement("a");
       link.download = `Trip_Day${selectedDay}.png`;
@@ -1168,7 +1178,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                                       tempName
                                     );
 
-                                    await updateUserNickname(tempName);
+                                    await updateUserNickname(tempName, tripId);
                                     initLoad(false);
                                   }
                                 }}
@@ -1553,7 +1563,6 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                       value={inputValue}
                       onChange={(e) => {
                         setInputValue(e.target.value);
-                        if (pendingLocation) setPendingLocation(null);
                       }}
                       onKeyDown={(e) => e.key === "Enter" && handleAddSpot()}
                       placeholder={`搜尋想去的${
@@ -1577,6 +1586,21 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                         ))}
                       </div>
                     )}
+                    {pendingLocation && (
+                      <div className="absolute -bottom-6 left-0 flex items-center gap-1.5 px-2 py-0.5 bg-orange-500 text-white rounded-md text-[9px] font-black shadow-sm animate-bounce">
+                        📍 座標已鎖定: {pendingLocation.lat.toFixed(4)},{" "}
+                        {pendingLocation.lng.toFixed(4)}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPendingLocation(null);
+                          }}
+                          className="ml-1 hover:text-orange-200"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <button
                     onClick={handleAddSpot}
@@ -1598,6 +1622,11 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                 onDurationsChange={setDurations}
                 // ✨ 傳入國家代碼給地圖組件
                 countryCode={tripData?.country_code}
+                onMapClick={(lat, lng) => {
+                  setPendingLocation({ lat, lng });
+                  // 如果目前沒打字，給個預設名稱提醒
+                  if (!inputValue) setInputValue("地圖標記點");
+                }}
               />
             </div>
           </div>

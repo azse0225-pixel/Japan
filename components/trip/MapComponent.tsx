@@ -13,6 +13,7 @@ export default function MapComponent({
   // ✨ 新增：傳入國家代碼參數
   countryCode = "TW",
   onDurationsChange,
+  onMapClick,
 }: {
   spots: any[];
   isLoaded: boolean;
@@ -20,6 +21,7 @@ export default function MapComponent({
   // ✨ 新增：型別定義
   countryCode?: string;
   onDurationsChange?: (durations: { [key: string]: string }) => void;
+  onMapClick?: (lat: number, lng: number) => void;
 }) {
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const [routeSegments, setRouteSegments] = useState<any[]>([]);
@@ -285,6 +287,13 @@ export default function MapComponent({
         disableDefaultUI: true,
         zoomControl: true,
         mapId: "e7677d27e908976c",
+      }}
+      onClick={(e) => {
+        if (e.latLng && onMapClick) {
+          const lat = e.latLng.lat();
+          const lng = e.latLng.lng();
+          onMapClick(lat, lng);
+        }
       }}
     >
       {routeSegments.map((segment) => (
