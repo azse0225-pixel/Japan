@@ -10,12 +10,15 @@ export default function MapComponent({
   spots,
   isLoaded,
   focusedSpot,
-  // ✨ 新增：把計算出的時間傳回去給列表顯示
+  // ✨ 新增：傳入國家代碼參數
+  countryCode = "TW",
   onDurationsChange,
 }: {
   spots: any[];
   isLoaded: boolean;
   focusedSpot: any | null;
+  // ✨ 新增：型別定義
+  countryCode?: string;
   onDurationsChange?: (durations: { [key: string]: string }) => void;
 }) {
   const [map, setMap] = useState<google.maps.Map | null>(null);
@@ -52,14 +55,20 @@ export default function MapComponent({
       if (Math.abs(lat) > 90 && Math.abs(lng) <= 90) [lat, lng] = [lng, lat];
       return { lat, lng };
     }
-    // Google Search Fallback... (省略以節省篇幅，邏輯同前一版)
+
     if (!google.maps.places || !google.maps.places.Place) return null;
     try {
+      // ✨ 直接在這裡定義前綴，確保不會找不到變數
+      const prefix =
+        countryCode === "JP" ? "日本 " : countryCode === "TW" ? "台灣 " : "";
+
       // @ts-ignore
       const { places } = await google.maps.places.Place.searchByText({
-        textQuery: spot.name,
+        // ✨ 將前綴與景點名稱組合，例如 "台灣 台北101"
+        textQuery: `${prefix}${spot.name}`,
         fields: ["location"],
         language: "zh-TW",
+        // ✅ 這裡已經移除了會報錯的 locationBias
       });
       if (places?.[0]?.location) {
         return { lat: places[0].location.lat(), lng: places[0].location.lng() };
@@ -69,9 +78,7 @@ export default function MapComponent({
     }
     return null;
   };
-
   const findNearestStation = async (location: { lat: number; lng: number }) => {
-    // (省略以節省篇幅，邏輯同前一版)
     if (!google.maps.places || !google.maps.places.Place) return null;
     try {
       // @ts-ignore
@@ -108,7 +115,7 @@ export default function MapComponent({
     if (!spots || spots.length === 0) {
       clearMarkers();
       setRouteSegments([]);
-      if (onDurationsChange) onDurationsChange({}); // 清空時間
+      if (onDurationsChange) onDurationsChange({});
       return;
     }
 
@@ -155,7 +162,7 @@ export default function MapComponent({
       }
 
       const allSegments: any[] = [];
-      const newDurations: { [key: string]: string } = {}; // ✨ 收集時間
+      const newDurations: { [key: string]: string } = {};
 
       for (let i = 1; i < spots.length; i++) {
         const startLoc = spotCoords[i - 1];
@@ -164,7 +171,6 @@ export default function MapComponent({
 
         if (!startLoc || !endLoc) continue;
 
-        // 封裝一下 Route 請求，方便抓取 duration
         const getRoute = (
           origin: any,
           destination: any,
@@ -188,11 +194,6 @@ export default function MapComponent({
           const stA = await findNearestStation(startLoc);
           const stB = await findNearestStation(endLoc);
           if (stA && stB) {
-            // 這裡為了簡化，地圖上只畫 "走路去車站" + "車站走去景點" 的線
-            // 但時間我們算這三段的總和有點複雜，這裡我們做個取捨：
-            // 直接抓「起點到終點」的大眾運輸時間給列表顯示，但地圖畫細節
-
-            // 1. 抓取給「顯示用」的總時間 (起點->終點 TRANSIT)
             const transitFullRoute = await getRoute(
               startLoc,
               endLoc,
@@ -203,7 +204,6 @@ export default function MapComponent({
                 transitFullRoute.routes[0].legs[0].duration.text;
             }
 
-            // 2. 畫地圖用的線 (Walking)
             const leg1 = await getRoute(
               startLoc,
               stA,
@@ -217,7 +217,6 @@ export default function MapComponent({
             if (leg1) allSegments.push({ result: leg1, id: `${segmentId}-1` });
             if (leg2) allSegments.push({ result: leg2, id: `${segmentId}-2` });
           } else {
-            // Fallback
             result = await getRoute(
               startLoc,
               endLoc,
@@ -225,7 +224,6 @@ export default function MapComponent({
             );
           }
         } else {
-          // WALKING
           result = await getRoute(
             startLoc,
             endLoc,
@@ -235,7 +233,6 @@ export default function MapComponent({
 
         if (result) {
           allSegments.push({ result, id: segmentId });
-          // ✨ 抓取時間文字 (例如 "15 mins")
           if (result.routes[0]?.legs[0]?.duration?.text) {
             newDurations[segmentId] = result.routes[0].legs[0].duration.text;
           }
@@ -243,7 +240,6 @@ export default function MapComponent({
       }
 
       setRouteSegments(allSegments);
-      // ✨ 回傳時間給列表
       if (onDurationsChange) onDurationsChange(newDurations);
 
       if (!focusedSpot) {

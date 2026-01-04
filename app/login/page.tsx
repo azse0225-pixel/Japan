@@ -8,6 +8,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [nickname, setNickname] = useState(""); // ✨ 新增：暱稱狀態
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false); // 切換登入/註冊模式
   const [msg, setMsg] = useState("");
@@ -18,7 +19,11 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`, // 登入後跳轉回來
+        redirectTo: `${window.location.origin}/auth/callback`,
+        queryParams: {
+          prompt: "select_account",
+          access_type: "offline",
+        },
       },
     });
     if (error) setMsg(error.message);
@@ -35,17 +40,29 @@ export default function LoginPage() {
       setMsg(error.message);
       setLoading(false);
     } else {
-      router.push("/"); // 登入成功，回首頁
+      router.push("/");
     }
   };
 
-  // 3. Email 註冊
+  // 3. Email 註冊 (含暱稱邏輯)
   const handleSignUp = async () => {
+    if (!nickname && isSignUp) {
+      setMsg("請填寫暱稱，讓旅伴認識你！");
+      return;
+    }
+
     setLoading(true);
     const { error } = await supabase.auth.signUp({
       email,
       password,
+      // ✨ 將暱稱存入 user_metadata
+      options: {
+        data: {
+          full_name: nickname,
+        },
+      },
     });
+
     if (error) {
       setMsg(error.message);
     } else {
@@ -67,7 +84,6 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* 訊息顯示 */}
         {msg && (
           <div className="mb-4 p-3 bg-orange-100 text-orange-600 rounded-xl text-sm font-bold text-center animate-pulse">
             {msg}
@@ -75,13 +91,11 @@ export default function LoginPage() {
         )}
 
         <div className="space-y-4">
-          {/* Google 按鈕 */}
           <button
             onClick={handleGoogleLogin}
             disabled={loading}
             className="w-full py-3 bg-white border-2 border-slate-100 hover:border-orange-200 text-slate-600 font-bold rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm"
           >
-            {/* Google Icon SVG */}
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -111,8 +125,18 @@ export default function LoginPage() {
             <div className="flex-grow border-t border-slate-100"></div>
           </div>
 
-          {/* Email 輸入框 */}
           <div className="space-y-3">
+            {/* ✨ 新增：只有註冊模式才顯示暱稱欄位 */}
+            {isSignUp && (
+              <input
+                type="text"
+                placeholder="想要大家怎麼稱呼你？"
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+                className="w-full px-5 py-3 bg-orange-50/50 border-2 border-orange-100 rounded-xl text-slate-700 font-bold focus:ring-2 focus:ring-orange-300 outline-none transition-all animate-in slide-in-from-top-2"
+              />
+            )}
+
             <input
               type="email"
               placeholder="信箱 Email"
@@ -129,7 +153,6 @@ export default function LoginPage() {
             />
           </div>
 
-          {/* 登入/註冊按鈕 */}
           {isSignUp ? (
             <button
               onClick={handleSignUp}
@@ -148,7 +171,6 @@ export default function LoginPage() {
             </button>
           )}
 
-          {/* 切換模式 */}
           <div className="text-center mt-4">
             <button
               onClick={() => {

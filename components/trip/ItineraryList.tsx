@@ -1,3 +1,4 @@
+// components/trip/ItineraryList.tsx 這行是檔案名稱路徑，不要刪除(方便識別)
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
@@ -22,6 +23,7 @@ import {
   addTripMember,
   deleteTripMember,
   updateSpotSplit,
+  updateUserNickname,
 } from "@/lib/actions/trip-actions";
 
 import { useJsApiLoader } from "@react-google-maps/api";
@@ -265,7 +267,7 @@ function SpotItem({
 
         <div className="flex-1 flex flex-col justify-center min-h-[40px]">
           <label className="text-[10px] text-slate-400 font-bold mb-0.5 ml-1">
-            備註 Note
+            備註:
           </label>
           <input
             type="text"
@@ -276,7 +278,6 @@ function SpotItem({
             className="w-full bg-transparent border-b border-transparent hover:border-slate-200 focus:border-orange-300 text-sm text-slate-700 placeholder:text-slate-300 outline-none transition-colors py-1 pl-1"
           />
 
-          {/* ⚠️ 修改重點：這裡加入了 flex-col sm:flex-row 讓手機版強制垂直排列 */}
           {(spot.estimated_cost > 0 || spot.actual_cost > 0) && (
             <div className="flex flex-col sm:flex-row gap-1 sm:gap-3 text-[10px] mt-1 pl-1">
               {spot.estimated_cost > 0 && (
@@ -504,7 +505,12 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
   const [durations, setDurations] = useState<{ [key: string]: string }>({});
   const [weather, setWeather] = useState<string>("🌤️ 晴時多雲 24°C");
   const [exchangeRate, setExchangeRate] = useState(0.22);
-
+  // components/trip/ItineraryList.tsx 內
+  const [user, setUser] = useState<any>(null);
+  // ✨ 新增：行程資料狀態 (用來讀取 country_code)
+  const [tripData, setTripData] = useState<any>(null);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [tempName, setTempName] = useState("");
   const exportRef = useRef<HTMLDivElement>(null);
   const saveTimerRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
 
@@ -539,7 +545,10 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
             {
               input: inputValue,
               includedPrimaryTypes: ["establishment", "geocode"],
-              includedRegionCodes: ["jp"],
+              // ✨ 改為動態讀取國家限制
+              includedRegionCodes: tripData?.country_code
+                ? [tripData.country_code.toLowerCase()]
+                : undefined,
               language: "zh-TW",
             }
           );
@@ -553,47 +562,111 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [inputValue, isLoaded]);
+  }, [inputValue, isLoaded, tripData]); // 加入 tripData 依賴
 
   const initLoad = async (resetFocus = true) => {
     if (resetFocus) setFocusedSpot(null);
     setIsLoading(true);
+    try {
+      // 1. 獲取當前登入者最新的 Auth 資訊
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
+      setUser(authUser);
 
-    const [tripData, memberData] = await Promise.all([
-      getTripData(tripId),
-      getTripMembers(tripId),
-    ]);
+      const [tripDataRaw, memberData] = await Promise.all([
+        getTripData(tripId),
+        getTripMembers(tripId),
+      ]);
+      const testtripData = await getTripData(tripId);
+      const testMemberData = await getTripMembers(tripId);
+      console.log("測試後端拿到的資料getTripData:", testtripData);
+      console.log("測試後端拿到的資料getTripMembers:", testMemberData);
 
-    setMembers(memberData || []);
+      const tripInfo = tripDataRaw as any;
+      console.log("🛠️ 檢查傳入 getSpots 的參數:", { tripId, selectedDay });
 
-    let currentDayCount = 1;
-    if (tripData?.days_count) {
-      currentDayCount = tripData.days_count;
-      setDays(Array.from({ length: tripData.days_count }, (_, i) => i + 1));
-      if (selectedDay > currentDayCount) {
-        setSelectedDay(currentDayCount);
-        setIsLoading(false);
-        return;
+      // 🔍 除錯 Log：請在瀏覽器按下 F12 查看 Console，確認這裡有沒有抓到 days_count
+      console.log("🔍 成功抓取行程資料:", tripInfo);
+
+      // 3. ✨ 處理天數與基本資料
+      if (tripInfo) {
+        setTripData(tripInfo);
+
+        // 抓取資料庫真實天數，若抓不到才設預設值 1 (防呆)
+        const totalDays = tripInfo.days_count || 1;
+
+        // 強制更新天數陣列，解決「只剩第一天」的問題
+        const daysArray = Array.from({ length: totalDays }, (_, i) => i + 1);
+        setDays(daysArray);
+
+        // 如果目前選的天數因為行程縮水而超標，跳回最後一天
+        if (selectedDay > totalDays) {
+          setSelectedDay(totalDays);
+          console.log("📍 [Step 1] 當前選擇天數:", selectedDay); // 🔍 確認點擊後數字有沒有變
+        }
+      } else {
+        // 如果 tripInfo 是 null，通常是 RLS 或後端沒抓到資料
+        console.warn("⚠️ 警告：無法取得行程資料，可能是權限不足或不在名單內");
       }
-    } else {
-      setDays([1]);
-    }
+      console.log("處理前的成員名單", memberData);
 
-    const spotData = await getSpots(tripId, selectedDay);
-    setSpots(
-      [...spotData].sort((a, b) =>
+      // 4. ✨ 處理名單與身分判定
+      const processedMembers = (memberData || []).map((m: any) => {
+        // 判定是否為登入中的「我」
+        const isThisRowMe =
+          authUser?.email &&
+          m.user_email?.toLowerCase().trim() ===
+            authUser.email.toLowerCase().trim();
+
+        // 判定是否為行程持有者 (顯示皇冠)
+        const isThisRowOwner =
+          tripInfo &&
+          m.user_email?.toLowerCase().trim() ===
+            tripInfo.owner_email?.toLowerCase().trim();
+
+        return {
+          ...m,
+          // 如果是我，顯示 Auth 最新暱稱以達成即時同步；否則顯示名單存的名字
+          name: isThisRowMe
+            ? authUser?.user_metadata?.full_name ||
+              m.name ||
+              m.user_email?.split("@")[0]
+            : m.name || m.user_email?.split("@")[0],
+          isOwner: isThisRowOwner,
+          isMe: isThisRowMe, // ✨ 補上這行，方便彈窗判定
+        };
+      });
+      console.log("處理後的成員名單", processedMembers);
+
+      setMembers(processedMembers);
+
+      // 5. 抓取景點 (維持原有邏輯)
+      const spotData = await getSpots(tripId, selectedDay);
+      console.log("📍 [Step 2] 後端回傳原始 spots:", spotData); // 🔍 確認這裡是不是 []
+      const sortedSpots = [...(spotData || [])].sort((a, b) =>
         (a.time || "99:99").localeCompare(b.time || "99:99")
-      )
-    );
-    setIsLoading(false);
+      );
+      console.log("📍 [Step 3] 排序後準備渲染的 spots:", sortedSpots);
+      setSpots(
+        [...spotData].sort((a, b) =>
+          (a.time || "99:99").localeCompare(b.time || "99:99")
+        )
+      );
 
-    const weathers = [
-      "🌤️ 晴朗 22°C",
-      "☁️ 多雲 20°C",
-      "🌧️ 小雨 18°C",
-      "☀️ 艷陽 28°C",
-    ];
-    setWeather(weathers[(selectedDay - 1) % weathers.length]);
+      // 6. 設定天氣 (維持原有邏輯)
+      const weathers = [
+        "🌤️ 晴朗 22°C",
+        "☁️ 多雲 20°C",
+        "🌧️ 小雨 18°C",
+        "☀️ 艷陽 28°C",
+      ];
+      setWeather(weathers[(selectedDay - 1) % weathers.length]);
+    } catch (error) {
+      console.error("❌ initLoad 執行失敗:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -689,9 +762,16 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
         finalLat = pendingLocation.lat;
         finalLng = pendingLocation.lng;
       } else {
+        // ✨ 同步 MapComponent 的邏輯：搜尋時加入國家關鍵字前綴
+        const prefix =
+          tripData?.country_code === "JP"
+            ? "日本 "
+            : tripData?.country_code === "TW"
+            ? "台灣 "
+            : "";
         // @ts-ignore
         const { places } = await google.maps.places.Place.searchByText({
-          textQuery: inputValue,
+          textQuery: `${prefix}${inputValue}`,
           fields: ["location"],
           language: "zh-TW",
         });
@@ -901,7 +981,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
             Day {selectedDay} 行程表
           </h1>
           <div className="flex justify-between mb-6 text-slate-500 font-bold text-lg border-b-2 border-orange-200 pb-4">
-            <span>{tripId}</span>
+            <span>{tripData?.title || tripId}</span>
             <div className="flex gap-6">
               <div className="flex flex-col items-end">
                 <span className="text-xs text-slate-400 uppercase">總預算</span>
@@ -1028,10 +1108,10 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
             className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
             onClick={() => setIsMemberModalOpen(false)}
           />
-          <div className="relative bg-white rounded-t-[40px] sm:rounded-[40px] p-8 w-full max-w-sm shadow-2xl animate-in slide-in-from-bottom sm:zoom-in duration-300 h-[80vh] flex flex-col">
+          <div className="relative bg-white rounded-t-[40px] sm:rounded-[40px] p-8 w-full max-w-md shadow-2xl animate-in slide-in-from-bottom sm:zoom-in duration-300 h-[85vh] flex flex-col">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-2xl font-black text-slate-800">
-                📊 分帳助手
+                📊 成員與共享
               </h3>
               <button
                 onClick={() => setIsMemberModalOpen(false)}
@@ -1041,59 +1121,200 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
               </button>
             </div>
 
-            <div className="mb-6">
-              <h4 className="text-sm font-bold text-slate-400 uppercase mb-2">
-                Trip Members
+            <div className="mb-6 overflow-y-auto pr-2 flex-1">
+              <h4 className="text-sm font-bold text-slate-400 uppercase mb-4 tracking-widest">
+                Members & Sharing
               </h4>
-              <div className="flex flex-wrap gap-2 mb-3">
-                {members.map((m) => (
-                  <span
-                    key={m.id}
-                    className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-sm font-bold flex items-center gap-2"
-                  >
-                    {m.name}
-                    <button
-                      onClick={() => {
-                        if (confirm("刪除此成員?"))
-                          deleteTripMember(m.id, tripId).then(() => initLoad());
-                      }}
-                      className="text-slate-400 hover:text-red-500"
+              <div className="space-y-4">
+                {/* 尋找 members.map 區塊並完整替換 */}
+                {/* --- 修改後的成員名單區塊 --- */}
+                {members.map((m) => {
+                  // 1. 定義判定變數
+                  const iAmTripOwner =
+                    user?.id && String(tripData?.owner_id) === String(user.id);
+
+                  const isThisRowOwner =
+                    m.isOwner === true ||
+                    (m.user_email && m.user_email === tripData?.owner_email);
+
+                  // ✨ 關鍵：分享帳號也能辨識出「這是我」
+                  const isThisRowMe =
+                    user?.email &&
+                    m.user_email?.toLowerCase().trim() ===
+                      user.email.toLowerCase().trim();
+
+                  return (
+                    <div
+                      key={m.id}
+                      className="bg-slate-50 p-4 rounded-3xl border border-slate-100 shadow-sm"
                     >
-                      ×
-                    </button>
-                  </span>
-                ))}
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="font-black text-slate-800 flex items-center gap-2">
+                          {isThisRowOwner ? "👑" : "👤"}
+
+                          {/* ✨ 判定是否為「我本人」，是的話開啟編輯邏輯 */}
+                          {m.isMe ? (
+                            isEditingName ? (
+                              <input
+                                autoFocus
+                                type="text"
+                                value={tempName}
+                                onChange={(e) => setTempName(e.target.value)}
+                                onBlur={async () => {
+                                  setIsEditingName(false);
+                                  if (tempName && tempName !== m.name) {
+                                    console.log(
+                                      "這是更改名子的onBlur",
+                                      tempName
+                                    );
+
+                                    await updateUserNickname(tempName);
+                                    initLoad(false);
+                                  }
+                                }}
+                                className="bg-orange-50 border-b-2 border-orange-500 outline-none px-1 w-32 font-black"
+                              />
+                            ) : (
+                              <span
+                                onClick={() => {
+                                  setTempName(m.name);
+                                  setIsEditingName(true);
+                                }}
+                                className="cursor-pointer hover:text-orange-500 flex items-center gap-1 group"
+                              >
+                                {m.name} (我)
+                                <svg
+                                  className="w-3 h-3 opacity-0 group-hover:opacity-100 text-orange-400"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth="2.5"
+                                    d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                                  />
+                                </svg>
+                              </span>
+                            )
+                          ) : (
+                            <span>{m.name}</span>
+                          )}
+
+                          {isThisRowOwner && (
+                            <span className="text-[10px] bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full border border-orange-200">
+                              持有者
+                            </span>
+                          )}
+                        </span>
+
+                        {/* 權限控制：持有者不能被踢，我本人或是老闆才能操作按鈕 */}
+                        {!isThisRowOwner && (iAmTripOwner || isThisRowMe) && (
+                          <button
+                            onClick={() => {
+                              const actionText = iAmTripOwner
+                                ? "剔除此成員"
+                                : "退出此行程";
+                              if (confirm(`確定要${actionText}嗎？`))
+                                deleteTripMember(m.id, tripId).then(() =>
+                                  initLoad()
+                                );
+                            }}
+                            className="text-slate-400 hover:text-red-500 transition-colors p-1 text-xs font-bold bg-white px-2 py-1 rounded-lg shadow-sm"
+                          >
+                            {iAmTripOwner ? "✕ 剔除" : "🚪 退出"}
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Email 修改區塊：僅限持有者對成員修改，或我對我自己修改 */}
+                      {!isThisRowOwner && (iAmTripOwner || isThisRowMe) && (
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[10px] text-slate-400 font-bold ml-1 uppercase">
+                            共享帳號 Email
+                          </label>
+                          <input
+                            type="email"
+                            placeholder="填入 Email 以共享行程"
+                            defaultValue={m.user_email || ""}
+                            className="w-full text-xs bg-white border border-slate-200 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-orange-200 font-bold text-slate-600"
+                            onBlur={async (e) => {
+                              const newEmail = e.target.value
+                                .toLowerCase()
+                                .trim();
+                              if (newEmail !== m.user_email) {
+                                await supabase
+                                  .from("trip_members")
+                                  .update({ user_email: newEmail })
+                                  .eq("id", m.id);
+
+                                setMembers((prev) =>
+                                  prev.map((item) =>
+                                    item.id === m.id
+                                      ? { ...item, user_email: newEmail }
+                                      : item
+                                  )
+                                );
+                              }
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {/* 唯讀顯示區域 */}
+                      {(isThisRowOwner || (!iAmTripOwner && !isThisRowMe)) && (
+                        <div className="mt-1 px-1">
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                            Email
+                          </p>
+                          <p className="text-xs text-slate-500 font-medium">
+                            {m.user_email || "尚未設定"}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="輸入名字 (例如: 金笨)"
-                  value={newMemberName}
-                  onChange={(e) => setNewMemberName(e.target.value)}
-                  className="bg-slate-50 border-none rounded-xl px-4 py-2 text-sm flex-1"
-                />
-                <button
-                  onClick={() => {
-                    if (newMemberName) {
-                      addTripMember(tripId, newMemberName).then(() =>
-                        initLoad()
-                      );
-                      setNewMemberName("");
-                    }
-                  }}
-                  className="bg-indigo-500 text-white px-4 py-2 rounded-xl font-bold text-sm"
-                >
-                  + 新增
-                </button>
+
+              <div className="mt-6 p-4 bg-orange-50 rounded-3xl border-2 border-dashed border-orange-200">
+                <h5 className="text-xs font-black text-orange-400 mb-3 text-center uppercase">
+                  Add New Member
+                </h5>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="例如: 金笨"
+                    value={newMemberName}
+                    onChange={(e) => setNewMemberName(e.target.value)}
+                    className="bg-white border-none rounded-2xl px-4 py-3 text-sm flex-1 font-bold shadow-sm"
+                  />
+                  <button
+                    onClick={() => {
+                      if (newMemberName) {
+                        console.log(tripId, newMemberName);
+
+                        // addTripMember(tripId, newMemberName).then(() =>
+                        //   initLoad()
+                        // );
+                        // setNewMemberName("");
+                      }
+                    }}
+                    className="bg-orange-500 text-white px-6 py-3 rounded-2xl font-black text-sm shadow-lg shadow-orange-100 active:scale-95 transition-all"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto bg-slate-50 rounded-2xl p-4 border border-slate-100">
-              <h4 className="text-sm font-bold text-slate-400 uppercase mb-3">
-                Settlement Report
+            <div className="mt-auto bg-slate-900 rounded-[32px] p-6 text-white overflow-y-auto max-h-[40%]">
+              <h4 className="text-xs font-black text-slate-400 uppercase mb-4 tracking-widest text-center">
+                📊 Settlement Report
               </h4>
               {members.length === 0 ? (
-                <div className="text-center text-slate-400 text-xs mt-10">
+                <div className="text-center text-slate-500 text-xs py-4">
                   請先新增成員
                 </div>
               ) : (
@@ -1101,25 +1322,20 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                   {settlement.map((m) => (
                     <div
                       key={m.id}
-                      className="flex justify-between items-center bg-white p-3 rounded-xl shadow-sm"
+                      className="flex justify-between items-center bg-white/10 p-3 rounded-2xl"
                     >
-                      <span className="font-bold text-slate-700">{m.name}</span>
+                      <span className="font-bold text-sm">{m.name}</span>
                       <div
-                        className={`font-mono font-bold ${
-                          m.balance >= 0 ? "text-green-500" : "text-red-500"
+                        className={`font-mono font-bold text-sm ${
+                          m.balance >= 0 ? "text-green-400" : "text-red-400"
                         }`}
                       >
                         {m.balance >= 0
-                          ? `收回 ¥${m.balance.toLocaleString()}`
-                          : `支付 ¥${Math.abs(m.balance).toLocaleString()}`}
+                          ? `+ ¥${m.balance.toLocaleString()}`
+                          : `- ¥${Math.abs(m.balance).toLocaleString()}`}
                       </div>
                     </div>
                   ))}
-                  <div className="mt-4 pt-4 border-t border-slate-200">
-                    <p className="text-xs text-slate-400 text-center">
-                      * 負數代表需要拿出錢，正數代表應該收回錢
-                    </p>
-                  </div>
                 </div>
               )}
             </div>
@@ -1143,7 +1359,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
             ← Back to trips
           </Link>
           <h1 className="text-4xl md:text-6xl font-black text-white uppercase tracking-tighter italic drop-shadow-lg">
-            {tripId.replace(/-/g, " ")}
+            {tripData?.title || tripId.replace(/-/g, " ")}
           </h1>
         </div>
         <div className="absolute top-8 right-8 bg-white/20 backdrop-blur-md px-4 py-2 rounded-2xl text-white font-black text-sm border border-white/30 flex items-center gap-2 shadow-sm">
@@ -1199,7 +1415,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
           <div className="flex-1">
             <div className="bg-white/80 backdrop-blur-md p-6 sm:p-8 rounded-[40px] shadow-xl border border-white">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-                <div>
+                <div className="w-full sm:w-auto">
                   <h2 className="text-xl font-black">今日計畫</h2>
                   <div
                     className="flex flex-col gap-1 mt-2 text-xs font-bold text-slate-500 bg-slate-50 p-3 rounded-xl cursor-pointer hover:bg-slate-100 transition-colors"
@@ -1218,7 +1434,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                       </span>
                     </div>
                     <div className="mt-1 pt-1 border-t border-slate-200 text-center text-indigo-400">
-                      📊 點擊查看分帳 / 管理成員
+                      📊 點擊查看分帳 / 管理成員與共享
                     </div>
                   </div>
                 </div>
@@ -1340,7 +1556,9 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                         if (pendingLocation) setPendingLocation(null);
                       }}
                       onKeyDown={(e) => e.key === "Enter" && handleAddSpot()}
-                      placeholder="搜尋想去的日本景點..."
+                      placeholder={`搜尋想去的${
+                        tripData?.country_code === "JP" ? "日本" : "地點"
+                      }景點...`}
                       className="w-full h-[56px] px-5 rounded-2xl bg-white border-none outline-none focus:ring-2 focus:ring-orange-400 font-bold shadow-sm"
                     />
                     {suggestions.length > 0 && (
@@ -1378,6 +1596,8 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                 isLoaded={isLoaded}
                 focusedSpot={focusedSpot}
                 onDurationsChange={setDurations}
+                // ✨ 傳入國家代碼給地圖組件
+                countryCode={tripData?.country_code}
               />
             </div>
           </div>
