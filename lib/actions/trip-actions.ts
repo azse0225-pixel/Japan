@@ -164,30 +164,43 @@ export async function updateSpotCategory(spotId: string, category: string) {
 }
 
 // 11. 建立全新旅程
-export async function createNewTrip(data: { title: string; id: string; date: string; location: string }) {
+// lib/actions/trip-actions.ts
+
+export async function createNewTrip(data: {
+	title: string;
+	date: string;
+	location: string;
+	country_code: string
+}) {
 	const supabase = await createSupabaseServerClient();
 	const { data: { user } } = await supabase.auth.getUser();
 
 	if (!user) return { success: false, message: "請先登入" };
 
+	// ✨ 核心優化：後端自動產生唯一 ID
+	// 格式：20260104-xxxx (日期-4位隨機碼)
+	const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+	const randomSuffix = Math.random().toString(36).substring(2, 6);
+	const uniqueId = `${today}-${randomSuffix}`;
+
 	// Step 1: 建立行程
 	const { error: tripError } = await supabase.from("trips").insert({
-		id: data.id,
+		id: uniqueId, // 使用自動產生的 ID
 		owner_id: user.id,
 		owner_email: user.email,
 		owner_name: user.user_metadata?.full_name || user.email?.split('@')[0],
 		title: data.title,
 		start_date: data.date,
 		location: data.location,
-		country_code: '',
+		country_code: data.country_code,
 		days_count: 1,
 	});
 
 	if (tripError) return { success: false, message: tripError.message };
 
-	// Step 2: ✨ 核心更新：把創辦人也塞進成員名單，這樣分帳跟名單就統一了
+	// Step 2: 把創辦人塞進成員名單
 	await supabase.from("trip_members").insert({
-		trip_id: data.id,
+		trip_id: uniqueId, // 記得這裡也要改用產出的 uniqueId
 		user_email: user.email,
 		name: user.user_metadata?.full_name || user.email?.split('@')[0]
 	});
@@ -554,4 +567,11 @@ export async function updateUserNickname(nickname: string, tripId?: string) {
 	if (tripId) revalidatePath(`/trip/${tripId}`);
 
 	return { success: true, name: newName };
+}
+// 刪除旅途
+export async function deleteTrip(tripId: string) {
+	const supabase = await createSupabaseServerClient();
+	const { error } = await supabase.from("trips").delete().eq("id", tripId);
+	if (error) return { success: false, message: error.message };
+	return { success: true };
 }

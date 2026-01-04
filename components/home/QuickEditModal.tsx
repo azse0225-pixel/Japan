@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { updateTripDetails } from "@/lib/actions/trip-actions";
+import { updateTripDetails, deleteTrip } from "@/lib/actions/trip-actions";
 import { useRouter } from "next/navigation";
 
 export default function QuickEditModal({
@@ -39,7 +39,19 @@ export default function QuickEditModal({
     }
     setLoading(false);
   };
-
+  const handleDelete = async () => {
+    if (confirm("確定要永久刪除此行程嗎？此動作無法復原。")) {
+      setLoading(true);
+      const result = await deleteTrip(trip.id);
+      if (result.success) {
+        router.refresh();
+        onClose();
+      } else {
+        alert("刪除失敗：" + result.message);
+        setLoading(false);
+      }
+    }
+  };
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-white w-full max-w-sm p-8 rounded-[40px] shadow-2xl animate-in zoom-in duration-200 border-4 border-orange-100">
@@ -129,6 +141,15 @@ export default function QuickEditModal({
               className="flex-1 py-3 bg-orange-500 text-white rounded-2xl font-black shadow-lg shadow-orange-200 active:scale-95 transition-all disabled:opacity-50"
             >
               {loading ? "儲存中..." : "儲存修改"}
+            </button>
+          </div>
+          <div className="pt-2 border-t border-slate-50 flex justify-center">
+            <button
+              type="button"
+              onClick={handleDelete}
+              className="text-xs font-bold text-red-300 hover:text-red-500 transition-colors flex items-center gap-1 p-2"
+            >
+              <span>🗑️</span> 刪除此行程
             </button>
           </div>
         </div>
