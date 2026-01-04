@@ -20,7 +20,7 @@ export default function MapComponent({
   focusedSpot: any | null;
   // ✨ 新增：型別定義
   countryCode?: string;
-  onDurationsChange?: (durations: { [key: string]: string }) => void;
+  onDurationsChange?: (durations: { [key: string]: any }) => void;
   onMapClick?: (lat: number, lng: number) => void;
 }) {
   const [map, setMap] = useState<google.maps.Map | null>(null);
@@ -85,17 +85,29 @@ export default function MapComponent({
     try {
       // @ts-ignore
       const { places } = await google.maps.places.Place.searchNearby({
-        locationRestriction: { center: location, radius: 1000 },
-        includedTypes: ["transit_station", "train_station", "subway_station"],
+        locationRestriction: { center: location, radius: 2000 }, // ✨ 1. 半徑放大到 2km 比較保險
+        includedTypes: [
+          "transit_station",
+          "train_station",
+          "subway_station",
+          "bus_stop", // ✨ 2. 加入巴士站，增加日本景點的兼容性
+          "bus_station",
+        ],
         maxResultCount: 1,
         fields: ["location", "displayName"],
         language: "zh-TW",
       });
+
       if (places && places.length > 0 && places[0].location) {
-        return { lat: places[0].location.lat(), lng: places[0].location.lng() };
+        // ✨ 這裡有個關鍵！要把 displayName 傳回去，MapComponent 才有機會在失敗時保底使用
+        return {
+          lat: places[0].location.lat(),
+          lng: places[0].location.lng(),
+          name: places[0].displayName, // 雖然目前 return 只拿 lat/lng，但留著備用更好
+        };
       }
     } catch (e) {
-      console.warn(e);
+      console.warn("尋找車站失敗:", e);
     }
     return null;
   };
@@ -164,23 +176,24 @@ export default function MapComponent({
       }
 
       const allSegments: any[] = [];
-      const newDurations: { [key: string]: string } = {};
+      const newDurations: { [key: string]: any } = {}; // ✨ 確保型別為 any
 
       for (let i = 1; i < spots.length; i++) {
         const startLoc = spotCoords[i - 1];
         const endLoc = spotCoords[i];
         const mode = spots[i].transport_mode;
+        const segmentId = spots[i].id;
 
         if (!startLoc || !endLoc) continue;
 
         const getRoute = (
           origin: any,
           destination: any,
-          mode: google.maps.TravelMode
+          travelMode: google.maps.TravelMode
         ) => {
           return new Promise<any>((resolve) => {
             directionsService.route(
-              { origin, destination, travelMode: mode },
+              { origin, destination, travelMode },
               (result, status) => {
                 if (status === "OK") resolve(result);
                 else resolve(null);
@@ -189,23 +202,63 @@ export default function MapComponent({
           });
         };
 
-        let result = null;
-        let segmentId = spots[i].id;
-
         if (mode === "TRANSIT") {
+          console.log("newDurations", newDurations);
+
+          // 1. 🔍 尋找最近車站 (針對日本優化範圍)
           const stA = await findNearestStation(startLoc);
           const stB = await findNearestStation(endLoc);
+
           if (stA && stB) {
             const transitFullRoute = await getRoute(
               startLoc,
               endLoc,
               google.maps.TravelMode.TRANSIT
             );
-            if (transitFullRoute?.routes[0]?.legs[0]?.duration?.text) {
-              newDurations[segmentId] =
-                transitFullRoute.routes[0].legs[0].duration.text;
+            console.log("transitFullRoute", transitFullRoute);
+
+            if (transitFullRoute?.routes[0]?.legs[0]) {
+              const leg = transitFullRoute.routes[0].legs[0];
+
+              // 2. ✨ 深度解析車站名稱 (針對日本多鐵路系統優化)
+              // 先找 transitStep，如果找不到，就去細節層級找
+              let departureName = "";
+              let arrivalName = "";
+
+              const transitStep = leg.steps.find(
+                (s: any) => s.travel_mode === "TRANSIT"
+              );
+
+              if (transitStep?.transit) {
+                departureName = transitStep.transit.departure_stop.name;
+                arrivalName = transitStep.transit.arrival_stop.name;
+              } else {
+                // 如果第一層找不到，嘗試掃描所有子步驟 (解決日本轉乘站名遺失問題)
+                leg.steps.forEach((s: any) => {
+                  if (s.transit_details) {
+                    departureName =
+                      departureName || s.transit_details.departure_stop.name;
+                    arrivalName = s.transit_details.arrival_stop.name; // 取最後一個站
+                  }
+                });
+              }
+
+              if (departureName && arrivalName) {
+                newDurations[segmentId] = {
+                  time: leg.duration?.text || "",
+                  stations: `${departureName} ➔ ${arrivalName}`,
+                };
+              } else {
+                newDurations[segmentId] = {
+                  time: leg.duration?.text || "",
+                  stations: null,
+                };
+              }
+
+              allSegments.push({ result: transitFullRoute, id: segmentId });
             }
 
+            // 畫出走路到車站的細線
             const leg1 = await getRoute(
               startLoc,
               stA,
@@ -219,24 +272,19 @@ export default function MapComponent({
             if (leg1) allSegments.push({ result: leg1, id: `${segmentId}-1` });
             if (leg2) allSegments.push({ result: leg2, id: `${segmentId}-2` });
           } else {
-            result = await getRoute(
+            // 如果找不到車站，退回普通走路模式
+            const walkResult = await getRoute(
               startLoc,
               endLoc,
               google.maps.TravelMode.WALKING
             );
-          }
-        } else {
-          result = await getRoute(
-            startLoc,
-            endLoc,
-            google.maps.TravelMode.WALKING
-          );
-        }
-
-        if (result) {
-          allSegments.push({ result, id: segmentId });
-          if (result.routes[0]?.legs[0]?.duration?.text) {
-            newDurations[segmentId] = result.routes[0].legs[0].duration.text;
+            if (walkResult) {
+              allSegments.push({ result: walkResult, id: segmentId });
+              newDurations[segmentId] = {
+                time: walkResult.routes[0].legs[0].duration?.text || "",
+                stations: null,
+              };
+            }
           }
         }
       }
@@ -266,8 +314,8 @@ export default function MapComponent({
           map.setZoom(15);
         }
       }
+      console.log("🚀 即將傳回父組件的資料:", newDurations); // ✨ 加這行
     };
-
     updateMap();
   }, [spots, isLoaded, map, focusedSpot]);
 

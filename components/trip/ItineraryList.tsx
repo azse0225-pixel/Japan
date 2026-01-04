@@ -553,7 +553,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
   const [newMemberName, setNewMemberName] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("spot");
   const [newSpotTime, setNewSpotTime] = useState("09:00");
-  const [durations, setDurations] = useState<{ [key: string]: string }>({});
+  const [durations, setDurations] = useState<{ [key: string]: any }>({});
   const [weather, setWeather] = useState<string>("🌤️ 晴時多雲 24°C");
   const [exchangeRate, setExchangeRate] = useState(0.22);
   const [user, setUser] = useState<any>(null);
@@ -1471,10 +1471,25 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                                 ? "🚇 搭地鐵"
                                 : "🚶 走路"}
                             </button>
+                            {/* 找到原本顯示時間與車站的區塊 */}
                             {durations[spot.id] && (
-                              <span className="ml-2 text-[10px] font-black text-slate-400 bg-slate-100 px-2 py-1 rounded-md">
-                                ⏱️ {durations[spot.id]}
-                              </span>
+                              <div className="ml-3 flex flex-col gap-1">
+                                {/* 顯示時間 (相容字串與物件格式) */}
+                                <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md w-fit whitespace-nowrap">
+                                  ⏱️{" "}
+                                  {typeof durations[spot.id] === "object"
+                                    ? durations[spot.id].time
+                                    : durations[spot.id]}
+                                </span>
+
+                                {/* ✨ 關鍵修正：確保這裡能抓到 stations 並顯示出來 */}
+                                {typeof durations[spot.id] === "object" &&
+                                  durations[spot.id].stations && (
+                                    <span className="text-[9px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100 italic w-fit animate-in fade-in slide-in-from-left-1">
+                                      🚉 {durations[spot.id].stations}
+                                    </span>
+                                  )}
+                              </div>
                             )}
                           </div>
                         )}
@@ -1583,8 +1598,12 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                 spots={spots}
                 isLoaded={isLoaded}
                 focusedSpot={focusedSpot}
-                onDurationsChange={setDurations}
                 countryCode={tripData?.country_code}
+                // ✨ 強制解析地鐵站名版
+                onDurationsChange={(newDurationsRaw) => {
+                  // 🚀 直接將地圖算好的資料（含站名）存入狀態即可
+                  setDurations(newDurationsRaw);
+                }}
                 onMapClick={(lat, lng) => {
                   setPendingLocation({ lat, lng });
                   if (!inputValue) setInputValue("地圖標記點");
