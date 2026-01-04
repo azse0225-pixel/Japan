@@ -158,25 +158,27 @@ export async function updateSpotCategory(spotId: string, category: string) {
 }
 
 // 11. 建立全新旅程
-export async function createNewTrip(tripId: string) {
+export async function createNewTrip(data: { title: string; id: string; date: string; location: string }) {
 	const supabase = await createSupabaseServerClient();
 	const { data: { user } } = await supabase.auth.getUser();
 
-	if (!user) return null;
+	if (!user) return { success: false, message: "請先登入" };
 
-	// 檢查是否已經存在
-	const { data: existing } = await supabase.from("trips").select("id").eq("id", tripId).single();
-	if (existing) return existing;
-
-	// 建立新的
 	const { error } = await supabase.from("trips").insert({
-		id: tripId,
+		id: data.id,
 		owner_id: user.id,
+		title: data.title,
+		start_date: data.date,
+		location: data.location,
 		days_count: 1, // 預設 1 天
-		title: tripId, // 暫時用 ID 當標題
 	});
 
-	if (error) console.error("建立行程失敗", error);
+	if (error) {
+		console.error("建立行程失敗", error);
+		return { success: false, message: error.message };
+	}
+
+	return { success: true };
 }
 
 // 12. 更新景點時間

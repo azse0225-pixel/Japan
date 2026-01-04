@@ -20,7 +20,7 @@ export default async function HomePage() {
   const { data: trips } = await supabase
     .from("trips")
     .select("*")
-    // .or(`owner_id.eq.${user.id},owner_id.is.null`) // ✨ 關鍵：抓我的或無主的
+    .eq("owner_id", user.id) // ✨ 關鍵：抓我的行程
     .order("created_at", { ascending: false });
 
   // 預設圖片
