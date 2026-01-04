@@ -23,7 +23,6 @@ export default function AddTripModal({ onClose }: { onClose: () => void }) {
     if (result.success) {
       onClose();
     } else {
-      alert("儲存失敗: " + result.error);
     }
     setLoading(false);
   }
