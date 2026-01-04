@@ -428,12 +428,13 @@ export async function deleteTripMember(memberId: string, tripId: string) {
 
 // --- 20. 更新分帳資訊 (誰付錢 / 分給誰) ---
 export async function updateSpotSplit(
-
 	spotId: string,
 	payerId: string | null,
-	involvedMembers: string[] // 誰要分攤的 ID 陣列
+	// ✨ 修改點：將類型改為 any，以同時支援 ID 陣列 [] 或 金額物件 {}
+	involvedMembers: any
 ) {
 	const supabase = await createSupabaseServerClient();
+
 	// 如果 payerId 是空字串，轉成 null
 	const finalPayerId = payerId === "" ? null : payerId;
 
@@ -441,6 +442,7 @@ export async function updateSpotSplit(
 		.from("spots")
 		.update({
 			payer_id: finalPayerId,
+			// Supabase 的 JSONB 欄位會自動識別傳進去的是陣列還是物件
 			involved_members: involvedMembers
 		})
 		.eq("id", spotId);
@@ -450,6 +452,8 @@ export async function updateSpotSplit(
 		throw error;
 	}
 
+	// 如果你有使用 Next.js 的快取機制，建議加上這行來即時更新畫面
+	// revalidatePath(`/trip/${tripId}`); 
 }
 // 2. 新增：取得「我的所有行程」列表
 export async function getUserTrips() {

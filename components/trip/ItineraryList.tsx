@@ -1,4 +1,4 @@
-// components/trip/ItineraryList.tsx 這行是檔案名稱路徑，不要刪除(方便識別)
+// components/trip/ItineraryList.tsx
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
@@ -75,6 +75,23 @@ const formatMoney = (yen: number, rate: number) => {
   );
 };
 
+// --- SpotSkeleton 骨架元件 ---
+function SpotSkeleton() {
+  return (
+    <div className="flex gap-4 items-start bg-white/50 p-5 rounded-[28px] border border-slate-100 mb-6 animate-pulse">
+      <div className="w-16 h-10 bg-slate-200 rounded-xl flex-shrink-0" />
+      <div className="flex-1 space-y-3">
+        <div className="h-5 bg-slate-200 rounded-lg w-1/3" />
+        <div className="flex gap-2">
+          <div className="w-8 h-8 bg-slate-100 rounded-lg" />
+          <div className="w-8 h-8 bg-slate-100 rounded-lg" />
+          <div className="h-8 bg-slate-50 rounded-lg flex-1" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // --- SpotItem 元件 ---
 function SpotItem({
   spot,
@@ -108,9 +125,7 @@ function SpotItem({
       const file = e.target.files[0];
       const formData = new FormData();
       formData.append("file", file);
-
       const publicUrl = await uploadSpotAttachment(spot.id, formData);
-
       if (publicUrl) {
         const newAttachments = [...(spot.attachments || []), publicUrl];
         onAttachmentChange(spot.id, newAttachments);
@@ -138,32 +153,68 @@ function SpotItem({
 
   const handleInvolvedChange = (memberId: string, isChecked: boolean) => {
     let currentInvolved = spot.involved_members || [];
-    if (isChecked) {
-      currentInvolved = [...currentInvolved, memberId];
+    if (Array.isArray(currentInvolved)) {
+      if (isChecked) {
+        currentInvolved = [...currentInvolved, memberId];
+      } else {
+        currentInvolved = currentInvolved.filter(
+          (id: string) => id !== memberId
+        );
+      }
     } else {
-      currentInvolved = currentInvolved.filter((id: string) => id !== memberId);
+      const newDetails = { ...currentInvolved };
+      if (isChecked) {
+        newDetails[memberId] =
+          spot.actual_cost / (Object.keys(newDetails).length + 1);
+      } else {
+        delete newDetails[memberId];
+      }
+      currentInvolved = newDetails;
     }
     onSplitChange(spot.id, spot.payer_id, currentInvolved);
+  };
+
+  const handleMemberAmountChange = (memberId: string, amount: number) => {
+    const currentInvolved = spot.involved_members || [];
+    const totalCost = spot.actual_cost || 0;
+    let newDetails: Record<string, number> = {};
+    const involvedIds = Array.isArray(currentInvolved)
+      ? currentInvolved
+      : Object.keys(currentInvolved);
+
+    if (involvedIds.length <= 1) {
+      newDetails[memberId] = totalCost;
+    } else {
+      newDetails[memberId] = amount;
+      const remainingAmount = totalCost - amount;
+      const otherMemberIds = involvedIds.filter((id) => id !== memberId);
+      const splitRemaining = remainingAmount / otherMemberIds.length;
+      otherMemberIds.forEach((id) => {
+        newDetails[id] = splitRemaining;
+      });
+    }
+    onSplitChange(spot.id, spot.payer_id, newDetails);
   };
 
   return (
     <div
       onClick={onSelect}
-      className="relative flex flex-col p-5 bg-white rounded-[28px] border border-slate-100 mb-6 shadow-sm hover:border-orange-100 transition-all group z-10 cursor-pointer hover:scale-[1.01]"
+      className="relative flex flex-col p-3 bg-white rounded-2xl border border-slate-100 mb-2 shadow-sm hover:border-orange-100 transition-all group z-10 cursor-pointer hover:scale-[1.005]"
     >
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4 flex-1">
+        <div className="flex items-center gap-3 flex-1">
           <div className="flex-shrink-0 z-10">
             <input
               type="time"
               value={spot.time || ""}
+              onFocus={(e) => e.target.select()}
               onChange={(e) => onTimeChange(spot.id, e.target.value)}
               onClick={(e) => e.stopPropagation()}
-              className="bg-orange-500 text-white font-black px-3 py-2 rounded-xl border-none focus:ring-4 focus:ring-orange-200 text-sm outline-none transition-all cursor-pointer shadow-sm"
+              className="bg-orange-500 text-white font-black px-2 py-1 rounded-lg border-none focus:ring-4 focus:ring-orange-200 text-xs outline-none transition-all cursor-pointer shadow-sm"
             />
           </div>
-          <div className="flex items-center gap-3 flex-wrap flex-1">
-            <span className="font-black text-slate-800 leading-tight tracking-tight text-lg">
+          <div className="flex items-center gap-2 flex-wrap flex-1">
+            <span className="font-bold text-slate-800 leading-tight tracking-tight text-base">
               {spot.name}
             </span>
             <div className="relative">
@@ -172,7 +223,7 @@ function SpotItem({
                   e.stopPropagation();
                   setShowCatMenu(!showCatMenu);
                 }}
-                className={`px-3 py-1 rounded-full text-[11px] font-black transition-transform active:scale-95 ${currentCat.color}`}
+                className={`px-2 py-0.5 rounded-full text-[10px] font-black transition-transform active:scale-95 ${currentCat.color}`}
               >
                 {currentCat.icon} {currentCat.label}
               </button>
@@ -185,7 +236,7 @@ function SpotItem({
                       setShowCatMenu(false);
                     }}
                   />
-                  <div className="absolute left-0 mt-2 w-32 bg-white border border-slate-100 rounded-2xl shadow-xl z-[70] p-2 animate-in fade-in zoom-in duration-100">
+                  <div className="absolute left-0 mt-1 w-32 bg-white border border-slate-100 rounded-2xl shadow-xl z-[70] p-2 animate-in fade-in zoom-in duration-100">
                     {CATEGORIES.map((c) => (
                       <button
                         key={c.id}
@@ -205,17 +256,16 @@ function SpotItem({
             </div>
           </div>
         </div>
-
         <button
           onClick={(e) => {
             e.stopPropagation();
             onDelete(spot.id);
           }}
-          className="p-2 text-slate-300 hover:text-red-500 transition-all active:scale-90"
+          className="p-1.5 text-slate-300 hover:text-red-500 transition-all active:scale-90"
         >
           <svg
-            width="24"
-            height="24"
+            width="18"
+            height="18"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -230,14 +280,14 @@ function SpotItem({
         </button>
       </div>
 
-      <div className="mt-3 flex gap-2 items-center">
+      <div className="mt-1 flex gap-2 items-center">
         <button
           onClick={(e) => {
             e.stopPropagation();
             setShowCost(!showCost);
             setShowTickets(false);
           }}
-          className={`w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center font-black transition-all ${
+          className={`w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center text-xs font-black transition-all ${
             spot.estimated_cost > 0 || spot.actual_cost > 0
               ? "bg-emerald-100 text-emerald-600"
               : "bg-slate-100 text-slate-400 hover:bg-emerald-50 hover:text-emerald-500"
@@ -251,7 +301,7 @@ function SpotItem({
             setShowTickets(!showTickets);
             setShowCost(false);
           }}
-          className={`w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center font-black transition-all relative ${
+          className={`w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center text-xs font-black transition-all relative ${
             spot.attachments?.length > 0
               ? "bg-blue-100 text-blue-600"
               : "bg-slate-100 text-slate-400 hover:bg-blue-50 hover:text-blue-500"
@@ -259,41 +309,28 @@ function SpotItem({
         >
           📎
           {spot.attachments?.length > 0 && (
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] rounded-full flex items-center justify-center">
+            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 text-white text-[8px] rounded-full flex items-center justify-center">
               {spot.attachments.length}
             </span>
           )}
         </button>
 
-        <div className="flex-1 flex flex-col justify-center min-h-[40px]">
-          <label className="text-[10px] text-slate-400 font-bold mb-0.5 ml-1">
-            備註:
-          </label>
+        <div className="flex-1 flex flex-row items-center gap-2 min-h-[24px]">
           <input
             type="text"
             value={spot.note || ""}
             onChange={(e) => onNoteChange(spot.id, e.target.value)}
             onClick={(e) => e.stopPropagation()}
-            placeholder="輸入備註 (例如: 必吃鬆餅...)"
-            className="w-full bg-transparent border-b border-transparent hover:border-slate-200 focus:border-orange-300 text-sm text-slate-700 placeholder:text-slate-300 outline-none transition-colors py-1 pl-1"
+            placeholder="備註..."
+            className="flex-1 bg-transparent border-b border-transparent hover:border-slate-200 focus:border-orange-300 text-xs text-slate-500 placeholder:text-slate-300 outline-none transition-colors py-0.5"
           />
-
-          {(spot.estimated_cost > 0 || spot.actual_cost > 0) && (
-            <div className="flex flex-col sm:flex-row gap-1 sm:gap-3 text-[10px] mt-1 pl-1">
-              {spot.estimated_cost > 0 && (
-                <div className="bg-slate-50 px-2 py-0.5 rounded text-slate-500 w-fit">
-                  預: {formatMoney(spot.estimated_cost, exchangeRate)}
-                </div>
-              )}
-              {spot.actual_cost > 0 && (
-                <div className="bg-emerald-50 px-2 py-0.5 rounded text-emerald-600 font-bold border border-emerald-100 flex items-center gap-1 w-fit">
-                  <span>實: {formatMoney(spot.actual_cost, exchangeRate)}</span>
-                  {spot.payer_id && (
-                    <span className="text-[9px] bg-white px-1 rounded text-emerald-400 whitespace-nowrap">
-                      ({payerName})
-                    </span>
-                  )}
-                </div>
+          {spot.actual_cost > 0 && (
+            <div className="bg-emerald-50 px-1.5 py-0.5 rounded text-[10px] text-emerald-600 font-bold border border-emerald-100 flex items-center gap-1 shrink-0">
+              <span>¥{spot.actual_cost.toLocaleString()}</span>
+              {spot.payer_id && (
+                <span className="text-[8px] bg-white px-1 rounded text-emerald-400 whitespace-nowrap">
+                  ({payerName})
+                </span>
               )}
             </div>
           )}
@@ -305,20 +342,21 @@ function SpotItem({
           className="mt-3 grid grid-cols-2 gap-3 animate-in slide-in-from-top-2 fade-in duration-200 cursor-default"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="bg-slate-50 rounded-xl p-3 flex flex-col relative border border-slate-100">
+          <div className="bg-slate-50 rounded-xl p-2 flex flex-col relative border border-slate-100">
             <div className="flex justify-between items-center mb-1">
-              <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+              <label className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
                 預算
               </label>
-              <span className="text-[11px] text-slate-500 font-bold bg-white px-1.5 rounded shadow-sm border border-slate-100">
+              <span className="text-[9px] text-slate-500 font-bold bg-white px-1 rounded shadow-sm">
                 NT$ {twdEst.toLocaleString()}
               </span>
             </div>
             <div className="flex items-center">
-              <span className="text-slate-400 text-sm mr-1 font-medium">¥</span>
+              <span className="text-slate-400 text-xs mr-1 font-medium">¥</span>
               <input
                 type="number"
                 value={spot.estimated_cost || 0}
+                onFocus={(e) => e.target.select()}
                 onChange={(e) =>
                   onCostChange(
                     spot.id,
@@ -326,27 +364,28 @@ function SpotItem({
                     spot.actual_cost
                   )
                 }
-                className="bg-transparent w-full text-lg font-black text-slate-700 outline-none"
+                className="bg-transparent w-full text-base font-black text-slate-700 outline-none"
                 placeholder="0"
               />
             </div>
           </div>
-          <div className="bg-emerald-50 rounded-xl p-3 flex flex-col relative border border-emerald-100">
+          <div className="bg-emerald-50 rounded-xl p-2 flex flex-col relative border border-emerald-100">
             <div className="flex justify-between items-center mb-1">
-              <label className="text-[10px] text-emerald-600/70 font-bold uppercase tracking-wider">
+              <label className="text-[9px] text-emerald-600/70 font-bold uppercase tracking-wider">
                 實支
               </label>
-              <span className="text-[11px] text-emerald-600 font-bold bg-white px-1.5 rounded shadow-sm border border-emerald-100">
+              <span className="text-[9px] text-emerald-600 font-bold bg-white px-1 rounded shadow-sm">
                 NT$ {twdAct.toLocaleString()}
               </span>
             </div>
             <div className="flex items-center">
-              <span className="text-emerald-500 text-sm mr-1 font-medium">
+              <span className="text-emerald-500 text-xs mr-1 font-medium">
                 ¥
               </span>
               <input
                 type="number"
                 value={spot.actual_cost || 0}
+                onFocus={(e) => e.target.select()}
                 onChange={(e) =>
                   onCostChange(
                     spot.id,
@@ -354,22 +393,21 @@ function SpotItem({
                     Number(e.target.value)
                   )
                 }
-                className="bg-transparent w-full text-lg font-black text-emerald-700 outline-none"
+                className="bg-transparent w-full text-base font-black text-emerald-700 outline-none"
                 placeholder="0"
               />
             </div>
           </div>
-
           {spot.actual_cost > 0 && members.length > 0 && (
-            <div className="col-span-2 bg-indigo-50 rounded-xl p-3 border border-indigo-100">
+            <div className="col-span-2 bg-indigo-50 rounded-xl p-2 border border-indigo-100">
               <div className="flex items-center gap-2 mb-2">
-                <label className="text-[10px] text-indigo-500 font-bold uppercase">
+                <label className="text-[9px] text-indigo-500 font-bold uppercase">
                   誰先墊錢?
                 </label>
                 <select
                   value={spot.payer_id || ""}
                   onChange={handlePayerChange}
-                  className="text-xs bg-white border border-indigo-200 rounded px-2 py-1 outline-none text-indigo-700 font-bold"
+                  className="text-xs bg-white border border-indigo-200 rounded px-2 py-0.5 outline-none text-indigo-700 font-bold"
                 >
                   <option value="">(選擇成員)</option>
                   {members.map((m: any) => (
@@ -379,20 +417,23 @@ function SpotItem({
                   ))}
                 </select>
               </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] text-indigo-500 font-bold uppercase mb-1">
-                  分給誰? (沒選=平分)
-                </label>
-                <div className="flex gap-2 flex-wrap">
-                  {members.map((m: any) => {
-                    const isChecked = (spot.involved_members || []).includes(
-                      m.id
-                    );
-                    return (
+              <div className="space-y-1.5">
+                {members.map((m: any) => {
+                  const isInvolved = Array.isArray(spot.involved_members)
+                    ? spot.involved_members.includes(m.id)
+                    : !!spot.involved_members?.[m.id];
+                  const amount = Array.isArray(spot.involved_members)
+                    ? spot.actual_cost /
+                      Math.max(1, spot.involved_members.length)
+                    : spot.involved_members?.[m.id] || 0;
+                  return (
+                    <div
+                      key={m.id}
+                      className="flex items-center justify-between bg-white/50 p-1.5 rounded-lg border border-indigo-100/50"
+                    >
                       <label
-                        key={m.id}
-                        className={`flex items-center gap-1 px-2 py-1 rounded text-xs cursor-pointer transition-colors ${
-                          isChecked
+                        className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] cursor-pointer transition-colors ${
+                          isInvolved
                             ? "bg-indigo-500 text-white"
                             : "bg-white text-indigo-400 border border-indigo-100"
                         }`}
@@ -400,16 +441,33 @@ function SpotItem({
                         <input
                           type="checkbox"
                           className="hidden"
-                          checked={isChecked}
+                          checked={isInvolved}
                           onChange={(e) =>
                             handleInvolvedChange(m.id, e.target.checked)
                           }
                         />
                         {m.name}
                       </label>
-                    );
-                  })}
-                </div>
+                      {isInvolved && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-[9px] text-indigo-400">¥</span>
+                          <input
+                            type="number"
+                            value={Math.round(amount)}
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) =>
+                              handleMemberAmountChange(
+                                m.id,
+                                Number(e.target.value)
+                              )
+                            }
+                            className="w-14 bg-white border border-indigo-100 rounded px-1 py-0.5 text-[10px] text-indigo-700 font-bold outline-none text-right"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -418,15 +476,15 @@ function SpotItem({
 
       {showTickets && (
         <div
-          className="mt-3 bg-blue-50 rounded-2xl p-4 animate-in slide-in-from-top-2 fade-in duration-200 cursor-default"
+          className="mt-2 bg-blue-50 rounded-xl p-3 animate-in slide-in-from-top-2 fade-in duration-200 cursor-default"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex justify-between items-center mb-3">
-            <h4 className="text-xs font-black text-blue-500 uppercase tracking-wider">
+          <div className="flex justify-between items-center mb-2">
+            <h4 className="text-[10px] font-black text-blue-500 uppercase tracking-wider">
               🎫 票券與附件
             </h4>
-            <label className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-colors shadow-sm flex items-center gap-1">
-              {isUploading ? "上傳中..." : "+ 上傳檔案"}
+            <label className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-colors shadow-sm">
+              {isUploading ? "上傳中..." : "+ 上傳"}
               <input
                 type="file"
                 className="hidden"
@@ -436,17 +494,16 @@ function SpotItem({
               />
             </label>
           </div>
-
           {!spot.attachments || spot.attachments.length === 0 ? (
-            <div className="text-center py-6 text-blue-300 text-xs font-bold border-2 border-dashed border-blue-200 rounded-xl">
-              這裡空空的，把門票或憑證丟進來吧！
+            <div className="text-center py-4 text-blue-300 text-[10px] font-bold border-2 border-dashed border-blue-200 rounded-lg">
+              無附件
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-1.5">
               {spot.attachments.map((url: string, idx: number) => (
                 <div
                   key={idx}
-                  className="relative group/img aspect-square bg-white rounded-xl overflow-hidden border border-blue-100 shadow-sm"
+                  className="relative group/img aspect-square bg-white rounded-lg overflow-hidden border border-blue-100 shadow-sm"
                 >
                   <a
                     href={url}
@@ -462,7 +519,7 @@ function SpotItem({
                   </a>
                   <button
                     onClick={() => handleDeleteAttachment(url)}
-                    className="absolute top-1 right-1 bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs opacity-0 group-hover/img:opacity-100 transition-opacity shadow-md"
+                    className="absolute top-0.5 right-0.5 bg-red-500 text-white w-4 h-4 rounded-full flex items-center justify-center text-[8px] opacity-0 group-hover/img:opacity-100 transition-opacity shadow-md"
                   >
                     ✕
                   </button>
@@ -475,7 +532,6 @@ function SpotItem({
     </div>
   );
 }
-
 // --- 主要元件 ---
 export default function ItineraryList({ tripId }: { tripId: string }) {
   const [spots, setSpots] = useState<any[]>([]);
@@ -487,32 +543,27 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     lng: number;
   } | null>(null);
   const [focusedSpot, setFocusedSpot] = useState<any>(null);
-
   const [selectedDay, setSelectedDay] = useState(1);
   const [days, setDays] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [targetDeleteDay, setTargetDeleteDay] = useState<number | null>(null);
   const [isChecklistOpen, setIsChecklistOpen] = useState(false);
-
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
   const [newMemberName, setNewMemberName] = useState("");
-
   const [selectedCategory, setSelectedCategory] = useState("spot");
   const [newSpotTime, setNewSpotTime] = useState("09:00");
-
   const [durations, setDurations] = useState<{ [key: string]: string }>({});
   const [weather, setWeather] = useState<string>("🌤️ 晴時多雲 24°C");
   const [exchangeRate, setExchangeRate] = useState(0.22);
-  // components/trip/ItineraryList.tsx 內
   const [user, setUser] = useState<any>(null);
-  // ✨ 新增：行程資料狀態 (用來讀取 country_code)
   const [tripData, setTripData] = useState<any>(null);
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState("");
   const exportRef = useRef<HTMLDivElement>(null);
   const saveTimerRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
+  const latestRequestId = useRef(0);
+  const loadTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
@@ -526,8 +577,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     fetch("https://api.exchangerate-api.com/v4/latest/JPY")
       .then((res) => res.json())
       .then((data) => {
-        if (data && data.rates && data.rates.TWD)
-          setExchangeRate(data.rates.TWD);
+        if (data?.rates?.TWD) setExchangeRate(data.rates.TWD);
       })
       .catch((err) => console.error("匯率抓取失敗", err));
   }, []);
@@ -545,7 +595,6 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
             {
               input: inputValue,
               includedPrimaryTypes: ["establishment", "geocode"],
-              // ✨ 改為動態讀取國家限制
               includedRegionCodes: tripData?.country_code
                 ? [tripData.country_code.toLowerCase()]
                 : undefined,
@@ -560,101 +609,64 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
       } catch (e) {
         setSuggestions([]);
       }
-    }, 300);
+    }, 100);
     return () => clearTimeout(timer);
-  }, [inputValue, isLoaded, tripData]); // 加入 tripData 依賴
+  }, [inputValue, isLoaded, tripData, pendingLocation]);
 
-  const initLoad = async (resetFocus = true) => {
+  const initLoad = async (resetFocus = true, requestId?: number) => {
+    if (requestId !== undefined && requestId !== latestRequestId.current)
+      return;
     if (resetFocus) setFocusedSpot(null);
     setIsLoading(true);
+    setSpots([]);
+
     try {
-      // 1. 獲取當前登入者最新的 Auth 資訊
       const {
         data: { user: authUser },
       } = await supabase.auth.getUser();
       setUser(authUser);
-
       const [tripDataRaw, memberData] = await Promise.all([
         getTripData(tripId),
         getTripMembers(tripId),
       ]);
-      const testtripData = await getTripData(tripId);
-      const testMemberData = await getTripMembers(tripId);
-      console.log("測試後端拿到的資料getTripData:", testtripData);
-      console.log("測試後端拿到的資料getTripMembers:", testMemberData);
-
       const tripInfo = tripDataRaw as any;
-      console.log("🛠️ 檢查傳入 getSpots 的參數:", { tripId, selectedDay });
-
-      // 🔍 除錯 Log：請在瀏覽器按下 F12 查看 Console，確認這裡有沒有抓到 days_count
-      console.log("🔍 成功抓取行程資料:", tripInfo);
-
-      // 3. ✨ 處理天數與基本資料
       if (tripInfo) {
         setTripData(tripInfo);
-
-        // 抓取資料庫真實天數，若抓不到才設預設值 1 (防呆)
         const totalDays = tripInfo.days_count || 1;
-
-        // 強制更新天數陣列，解決「只剩第一天」的問題
         const daysArray = Array.from({ length: totalDays }, (_, i) => i + 1);
         setDays(daysArray);
-
-        // 如果目前選的天數因為行程縮水而超標，跳回最後一天
-        if (selectedDay > totalDays) {
-          setSelectedDay(totalDays);
-          console.log("📍 [Step 1] 當前選擇天數:", selectedDay); // 🔍 確認點擊後數字有沒有變
-        }
-      } else {
-        // 如果 tripInfo 是 null，通常是 RLS 或後端沒抓到資料
-        console.warn("⚠️ 警告：無法取得行程資料，可能是權限不足或不在名單內");
+        if (selectedDay > totalDays) setSelectedDay(totalDays);
       }
-      console.log("處理前的成員名單", memberData);
-
-      // 4. ✨ 處理名單與身分判定
       const processedMembers = (memberData || []).map((m: any) => {
-        // 判定是否為登入中的「我」
         const isThisRowMe =
           authUser?.email &&
           m.user_email?.toLowerCase().trim() ===
             authUser.email.toLowerCase().trim();
-
-        // 判定是否為行程持有者 (顯示皇冠)
         const isThisRowOwner =
           tripInfo &&
           m.user_email?.toLowerCase().trim() ===
             tripInfo.owner_email?.toLowerCase().trim();
-
         return {
           ...m,
-          // 如果是我，顯示 Auth 最新暱稱以達成即時同步；否則顯示名單存的名字
           name: isThisRowMe
             ? authUser?.user_metadata?.full_name ||
               m.name ||
               m.user_email?.split("@")[0]
             : m.name || m.user_email?.split("@")[0],
           isOwner: isThisRowOwner,
-          isMe: isThisRowMe, // ✨ 補上這行，方便彈窗判定
+          isMe: isThisRowMe,
         };
       });
-      console.log("處理後的成員名單", processedMembers);
-
       setMembers(processedMembers);
 
-      // 5. 抓取景點 (維持原有邏輯)
       const spotData = await getSpots(tripId, selectedDay);
-      console.log("📍 [Step 2] 後端回傳原始 spots:", spotData); // 🔍 確認這裡是不是 []
+      if (requestId !== undefined && requestId !== latestRequestId.current)
+        return;
+
       const sortedSpots = [...(spotData || [])].sort((a, b) =>
         (a.time || "99:99").localeCompare(b.time || "99:99")
       );
-      console.log("📍 [Step 3] 排序後準備渲染的 spots:", sortedSpots);
-      setSpots(
-        [...spotData].sort((a, b) =>
-          (a.time || "99:99").localeCompare(b.time || "99:99")
-        )
-      );
-
-      // 6. 設定天氣 (維持原有邏輯)
+      setSpots(sortedSpots);
       const weathers = [
         "🌤️ 晴朗 22°C",
         "☁️ 多雲 20°C",
@@ -665,12 +677,23 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     } catch (error) {
       console.error("❌ initLoad 執行失敗:", error);
     } finally {
-      setIsLoading(false);
+      if (requestId === undefined || requestId === latestRequestId.current) {
+        setIsLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    initLoad(true);
+    if (loadTimerRef.current) clearTimeout(loadTimerRef.current);
+    setIsLoading(true);
+    setSpots([]);
+    const currentId = ++latestRequestId.current;
+    loadTimerRef.current = setTimeout(() => {
+      initLoad(true, currentId);
+    }, 100);
+    return () => {
+      if (loadTimerRef.current) clearTimeout(loadTimerRef.current);
+    };
   }, [tripId, selectedDay]);
 
   useEffect(() => {
@@ -701,11 +724,10 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
         }
       )
       .subscribe();
-
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [tripId, selectedDay]);
+  }, [tripId]);
 
   const handleDownload = async () => {
     if (!exportRef.current) return;
@@ -716,15 +738,11 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
         cacheBust: true,
         backgroundColor: "#fff7ed",
         pixelRatio: 2,
-        filter: (node) => {
-          if (
+        filter: (node) =>
+          !(
             node.tagName === "LINK" &&
             node.getAttribute("href")?.includes("fonts.googleapis.com")
-          ) {
-            return false;
-          }
-          return true;
-        },
+          ),
         skipFonts: true,
       });
       const link = document.createElement("a");
@@ -772,7 +790,6 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
         finalLat = pendingLocation.lat;
         finalLng = pendingLocation.lng;
       } else {
-        // ✨ 同步 MapComponent 的邏輯：搜尋時加入國家關鍵字前綴
         const prefix =
           tripData?.country_code === "JP"
             ? "日本 "
@@ -785,7 +802,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
           fields: ["location"],
           language: "zh-TW",
         });
-        if (places && places[0]?.location) {
+        if (places?.[0]?.location) {
           finalLat = places[0].location.lat();
           finalLng = places[0].location.lng();
         } else {
@@ -830,7 +847,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
   const handleSplitChange = async (
     spotId: string,
     payerId: string | null,
-    involved: string[]
+    involved: any
   ) => {
     setSpots((prev) =>
       prev.map((s) =>
@@ -898,20 +915,17 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     if (spots.length < 3) return alert("地點太少，不需要排序啦！");
     setIsLoading(true);
     const unsorted = [...spots];
-    const sorted = [unsorted.shift()];
+    const sorted: any[] = [unsorted.shift()];
     while (unsorted.length > 0) {
       const current = sorted[sorted.length - 1];
       let nearestIndex = -1;
       let minDist = Infinity;
-      const getLoc = (s: any) => {
-        if (s.lat && s.lng) return { lat: Number(s.lat), lng: Number(s.lng) };
-        if (Array.isArray(s.coordinates))
-          return {
-            lat: Number(s.coordinates[1]),
-            lng: Number(s.coordinates[0]),
-          };
-        return null;
-      };
+      const getLoc = (s: any) =>
+        s.lat && s.lng
+          ? { lat: Number(s.lat), lng: Number(s.lng) }
+          : Array.isArray(s.coordinates)
+          ? { lat: Number(s.coordinates[1]), lng: Number(s.coordinates[0]) }
+          : null;
       const currentLoc = getLoc(current);
       if (!currentLoc) {
         sorted.push(unsorted.shift());
@@ -933,9 +947,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
       if (nearestIndex !== -1) {
         sorted.push(unsorted[nearestIndex]);
         unsorted.splice(nearestIndex, 1);
-      } else {
-        sorted.push(unsorted.shift());
-      }
+      } else sorted.push(unsorted.shift());
     }
     const timeSlots = spots.map((s) => s.time).sort();
     const updatedSpots = sorted.map((s, i) => ({
@@ -943,32 +955,38 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
       time: timeSlots[i] || "10:00",
     }));
     setSpots(updatedSpots);
-    const updates = updatedSpots.map((s) => ({ id: s.id, time: s.time }));
-    await updateSpotBatchOrder(updates);
+    await updateSpotBatchOrder(
+      updatedSpots.map((s) => ({ id: s.id, time: s.time }))
+    );
     setIsLoading(false);
   };
 
   const settlement = useMemo(() => {
     if (members.length === 0) return [];
-
-    const balances: { [key: string]: number } = {};
+    const balances: Record<string, number> = {};
     members.forEach((m) => (balances[m.id] = 0));
-
     spots.forEach((spot) => {
-      const cost = spot.actual_cost || 0;
-      if (cost === 0 || !spot.payer_id) return;
-
-      balances[spot.payer_id] = (balances[spot.payer_id] || 0) + cost;
-      const involved =
-        spot.involved_members && spot.involved_members.length > 0
-          ? spot.involved_members
-          : members.map((m) => m.id);
-      const splitAmount = cost / involved.length;
-      involved.forEach((uid: string) => {
-        balances[uid] = (balances[uid] || 0) - splitAmount;
-      });
+      const cost = Number(spot.actual_cost || 0);
+      if (cost <= 0) return;
+      const payerId = spot.payer_id;
+      const isDetailed =
+        spot.involved_members && !Array.isArray(spot.involved_members);
+      if (isDetailed) {
+        const details = spot.involved_members as Record<string, number>;
+        Object.entries(details).forEach(([mId, amount]) => {
+          if (balances[mId] !== undefined) balances[mId] -= amount;
+        });
+      } else {
+        const involved = (spot.involved_members as string[]) || [];
+        if (involved.length > 0) {
+          const splitAmount = cost / involved.length;
+          involved.forEach((mId) => {
+            if (balances[mId] !== undefined) balances[mId] -= splitAmount;
+          });
+        }
+      }
+      if (payerId && balances[payerId] !== undefined) balances[payerId] += cost;
     });
-
     return members
       .map((m) => ({ id: m.id, name: m.name, balance: balances[m.id] || 0 }))
       .sort((a, b) => b.balance - a.balance);
@@ -982,6 +1000,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
 
   return (
     <div className="w-full pb-20">
+      {/* 導出圖層 (隱藏) */}
       <div className="fixed left-[-9999px]">
         <div
           ref={exportRef}
@@ -1028,33 +1047,21 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                   {(spot.estimated_cost > 0 || spot.actual_cost > 0) && (
                     <div className="flex flex-col gap-1 mt-2 p-3 bg-slate-50 rounded-xl w-fit">
                       {spot.estimated_cost > 0 && (
-                        <div className="flex items-center text-sm font-medium text-slate-500">
-                          <span className="bg-white px-2 py-0.5 rounded text-xs border border-slate-100 mr-2 shadow-sm">
-                            預算
-                          </span>
-                          <span>¥{spot.estimated_cost.toLocaleString()}</span>
-                          <span className="text-slate-400 ml-2 text-xs">
-                            (NT$
-                            {Math.floor(
-                              spot.estimated_cost * exchangeRate
-                            ).toLocaleString()}
-                            )
-                          </span>
+                        <div className="text-sm text-slate-500 font-medium">
+                          預: ¥{spot.estimated_cost.toLocaleString()} (NT$
+                          {Math.floor(
+                            spot.estimated_cost * exchangeRate
+                          ).toLocaleString()}
+                          )
                         </div>
                       )}
                       {spot.actual_cost > 0 && (
-                        <div className="flex items-center text-sm font-bold text-orange-600">
-                          <span className="bg-orange-100 px-2 py-0.5 rounded text-xs mr-2 shadow-sm">
-                            實支
-                          </span>
-                          <span>¥{spot.actual_cost.toLocaleString()}</span>
-                          <span className="text-orange-400 ml-2 text-xs">
-                            (NT$
-                            {Math.floor(
-                              spot.actual_cost * exchangeRate
-                            ).toLocaleString()}
-                            )
-                          </span>
+                        <div className="text-sm text-orange-600 font-bold">
+                          實: ¥{spot.actual_cost.toLocaleString()} (NT$
+                          {Math.floor(
+                            spot.actual_cost * exchangeRate
+                          ).toLocaleString()}
+                          )
                         </div>
                       )}
                     </div>
@@ -1069,49 +1076,49 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
         </div>
       </div>
 
+      {/* 刪除彈窗 */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-6">
           <div
             className="absolute inset-0 bg-orange-900/40 backdrop-blur-sm"
             onClick={() => setIsModalOpen(false)}
           />
-          <div className="relative bg-white rounded-t-[40px] sm:rounded-[40px] p-10 w-full max-w-sm shadow-2xl animate-in slide-in-from-bottom sm:zoom-in duration-300">
-            <div className="text-center">
-              <div className="text-4xl mb-4">🍊</div>
-              <h3 className="text-2xl font-black text-slate-800 mb-2">
-                確定刪除嗎？
-              </h3>
-              <p className="text-slate-500 mb-8">
-                Day {targetDeleteDay} 的行程會清空喔
-              </p>
-              <div className="flex flex-col gap-3">
-                <button
-                  onClick={async () => {
-                    setIsModalOpen(false);
-                    setIsLoading(true);
-                    await deleteSpecificDay(
-                      tripId,
-                      targetDeleteDay!,
-                      days.length
-                    );
-                    initLoad();
-                  }}
-                  className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black shadow-lg"
-                >
-                  確認刪除
-                </button>
-                <button
-                  onClick={() => setIsModalOpen(false)}
-                  className="w-full py-4 bg-slate-100 text-slate-500 rounded-2xl font-black"
-                >
-                  取消
-                </button>
-              </div>
+          <div className="relative bg-white rounded-t-[40px] sm:rounded-[40px] p-10 w-full max-w-sm shadow-2xl animate-in slide-in-from-bottom sm:zoom-in duration-300 text-center">
+            <div className="text-4xl mb-4">🍊</div>
+            <h3 className="text-2xl font-black text-slate-800 mb-2">
+              確定刪除嗎？
+            </h3>
+            <p className="text-slate-500 mb-8">
+              Day {targetDeleteDay} 的行程會清空喔
+            </p>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={async () => {
+                  setIsModalOpen(false);
+                  setIsLoading(true);
+                  await deleteSpecificDay(
+                    tripId,
+                    targetDeleteDay!,
+                    days.length
+                  );
+                  initLoad();
+                }}
+                className="w-full py-4 bg-orange-500 text-white rounded-2xl font-black shadow-lg"
+              >
+                確認刪除
+              </button>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="w-full py-4 bg-slate-100 text-slate-500 rounded-2xl font-black"
+              >
+                取消
+              </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* 成員分帳彈窗 */}
       {isMemberModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-6">
           <div
@@ -1130,29 +1137,18 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                 ✕
               </button>
             </div>
-
             <div className="mb-6 overflow-y-auto pr-2 flex-1">
-              <h4 className="text-sm font-bold text-slate-400 uppercase mb-4 tracking-widest">
-                Members & Sharing
-              </h4>
               <div className="space-y-4">
-                {/* 尋找 members.map 區塊並完整替換 */}
-                {/* --- 修改後的成員名單區塊 --- */}
                 {members.map((m) => {
-                  // 1. 定義判定變數
                   const iAmTripOwner =
                     user?.id && String(tripData?.owner_id) === String(user.id);
-
                   const isThisRowOwner =
                     m.isOwner === true ||
                     (m.user_email && m.user_email === tripData?.owner_email);
-
-                  // ✨ 關鍵：分享帳號也能辨識出「這是我」
                   const isThisRowMe =
                     user?.email &&
                     m.user_email?.toLowerCase().trim() ===
                       user.email.toLowerCase().trim();
-
                   return (
                     <div
                       key={m.id}
@@ -1161,9 +1157,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                       <div className="flex justify-between items-center mb-2">
                         <span className="font-black text-slate-800 flex items-center gap-2">
                           {isThisRowOwner ? "👑" : "👤"}
-
-                          {/* ✨ 判定是否為「我本人」，是的話開啟編輯邏輯 */}
-                          {m.isMe ? (
+                          {isThisRowMe ? (
                             isEditingName ? (
                               <input
                                 autoFocus
@@ -1173,11 +1167,6 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                                 onBlur={async () => {
                                   setIsEditingName(false);
                                   if (tempName && tempName !== m.name) {
-                                    console.log(
-                                      "這是更改名子的onBlur",
-                                      tempName
-                                    );
-
                                     await updateUserNickname(tempName, tripId);
                                     initLoad(false);
                                   }
@@ -1211,86 +1200,59 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                           ) : (
                             <span>{m.name}</span>
                           )}
-
                           {isThisRowOwner && (
                             <span className="text-[10px] bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full border border-orange-200">
                               持有者
                             </span>
                           )}
                         </span>
-
-                        {/* 權限控制：持有者不能被踢，我本人或是老闆才能操作按鈕 */}
                         {!isThisRowOwner && (iAmTripOwner || isThisRowMe) && (
                           <button
                             onClick={() => {
-                              const actionText = iAmTripOwner
-                                ? "剔除此成員"
-                                : "退出此行程";
-                              if (confirm(`確定要${actionText}嗎？`))
+                              if (
+                                confirm(
+                                  `確定要${
+                                    iAmTripOwner ? "剔除此成員" : "退出此行程"
+                                  }嗎？`
+                                )
+                              )
                                 deleteTripMember(m.id, tripId).then(() =>
                                   initLoad()
                                 );
                             }}
-                            className="text-slate-400 hover:text-red-500 transition-colors p-1 text-xs font-bold bg-white px-2 py-1 rounded-lg shadow-sm"
+                            className="text-slate-400 hover:text-red-500 p-1 text-xs font-bold bg-white px-2 py-1 rounded-lg shadow-sm"
                           >
                             {iAmTripOwner ? "✕ 剔除" : "🚪 退出"}
                           </button>
                         )}
                       </div>
-
-                      {/* Email 修改區塊：僅限持有者對成員修改，或我對我自己修改 */}
                       {!isThisRowOwner && (iAmTripOwner || isThisRowMe) && (
-                        <div className="flex flex-col gap-1">
-                          <label className="text-[10px] text-slate-400 font-bold ml-1 uppercase">
-                            共享帳號 Email
-                          </label>
-                          <input
-                            type="email"
-                            placeholder="填入 Email 以共享行程"
-                            defaultValue={m.user_email || ""}
-                            className="w-full text-xs bg-white border border-slate-200 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-orange-200 font-bold text-slate-600"
-                            onBlur={async (e) => {
-                              const newEmail = e.target.value
-                                .toLowerCase()
-                                .trim();
-                              if (newEmail !== m.user_email) {
-                                await supabase
-                                  .from("trip_members")
-                                  .update({ user_email: newEmail })
-                                  .eq("id", m.id);
-
-                                setMembers((prev) =>
-                                  prev.map((item) =>
-                                    item.id === m.id
-                                      ? { ...item, user_email: newEmail }
-                                      : item
-                                  )
-                                );
-                              }
-                            }}
-                          />
-                        </div>
-                      )}
-
-                      {/* 唯讀顯示區域 */}
-                      {(isThisRowOwner || (!iAmTripOwner && !isThisRowMe)) && (
-                        <div className="mt-1 px-1">
-                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                            Email
-                          </p>
-                          <p className="text-xs text-slate-500 font-medium">
-                            {m.user_email || "尚未設定"}
-                          </p>
-                        </div>
+                        <input
+                          type="email"
+                          placeholder="填入 Email 以共享行程"
+                          defaultValue={m.user_email || ""}
+                          className="w-full text-xs bg-white border border-slate-200 rounded-xl px-4 py-2 outline-none font-bold text-slate-600"
+                          onBlur={async (e) => {
+                            const newEmail = e.target.value
+                              .toLowerCase()
+                              .trim();
+                            if (newEmail !== m.user_email) {
+                              await supabase
+                                .from("trip_members")
+                                .update({ user_email: newEmail })
+                                .eq("id", m.id);
+                              initLoad(false);
+                            }
+                          }}
+                        />
                       )}
                     </div>
                   );
                 })}
               </div>
-
               <div className="mt-6 p-4 bg-orange-50 rounded-3xl border-2 border-dashed border-orange-200">
                 <h5 className="text-xs font-black text-orange-400 mb-3 text-center uppercase">
-                  Add New Member
+                  加入成員
                 </h5>
                 <div className="flex gap-2">
                   <input
@@ -1303,22 +1265,19 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                   <button
                     onClick={() => {
                       if (newMemberName) {
-                        console.log(tripId, newMemberName);
-
-                        // addTripMember(tripId, newMemberName).then(() =>
-                        //   initLoad()
-                        // );
-                        // setNewMemberName("");
+                        addTripMember(tripId, newMemberName).then(() =>
+                          initLoad()
+                        );
+                        setNewMemberName("");
                       }
                     }}
-                    className="bg-orange-500 text-white px-6 py-3 rounded-2xl font-black text-sm shadow-lg shadow-orange-100 active:scale-95 transition-all"
+                    className="bg-orange-500 text-white px-6 py-3 rounded-2xl font-black text-sm shadow-lg shadow-orange-100 active:scale-95"
                   >
                     +
                   </button>
                 </div>
               </div>
             </div>
-
             <div className="mt-auto bg-slate-900 rounded-[32px] p-6 text-white overflow-y-auto max-h-[40%]">
               <h4 className="text-xs font-black text-slate-400 uppercase mb-4 tracking-widest text-center">
                 📊 Settlement Report
@@ -1353,6 +1312,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
         </div>
       )}
 
+      {/* 標題區域 */}
       <div className="relative h-[220px] w-full bg-orange-100 rounded-t-[40px] overflow-hidden border-b-4 border-white">
         <img
           src="/images/header.jpg"
@@ -1383,11 +1343,18 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
         </button>
       </div>
 
+      {/* 天數選擇區域 */}
       <div className="max-w-7xl mx-auto -mt-6 px-4">
-        <div className="flex items-center gap-3 overflow-x-auto no-scrollbar py-6 pl-2 pr-4">
+        <div className="flex items-center gap-3 overflow-x-auto no-scrollbar py-6 pl-2 pr-4 relative">
+          {isLoading && (
+            <div className="absolute inset-0 z-50 cursor-wait bg-white/40 backdrop-blur-[1px] rounded-2xl flex items-center justify-center animate-in fade-in duration-300">
+              <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
           {days.map((day) => (
             <div key={day} className="relative flex-shrink-0 z-10">
               <button
+                disabled={isLoading}
                 onClick={() => setSelectedDay(day)}
                 className={`px-6 py-3 rounded-2xl font-black transition-all border-2 ${
                   selectedDay === day
@@ -1415,17 +1382,18 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
               await updateTripDays(tripId, newTotal);
               setDays([...days, newTotal]);
             }}
-            className="px-8 py-3 rounded-2xl border-2 border-dashed border-orange-200 text-orange-400 font-black hover:bg-orange-50 hover:border-orange-300 transition-all"
+            className="px-8 py-3 rounded-2xl border-2 border-dashed border-orange-200 text-orange-400 font-black hover:bg-orange-50 hover:border-orange-300"
           >
             + DAY
           </button>
         </div>
 
+        {/* 行程內容與地圖 */}
         <div className="flex flex-col lg:flex-row gap-6">
           <div className="flex-1">
             <div className="bg-white/80 backdrop-blur-md p-6 sm:p-8 rounded-[40px] shadow-xl border border-white">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-                <div className="w-full sm:w-auto">
+                <div>
                   <h2 className="text-xl font-black">今日計畫</h2>
                   <div
                     className="flex flex-col gap-1 mt-2 text-xs font-bold text-slate-500 bg-slate-50 p-3 rounded-xl cursor-pointer hover:bg-slate-100 transition-colors"
@@ -1444,7 +1412,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                       </span>
                     </div>
                     <div className="mt-1 pt-1 border-t border-slate-200 text-center text-indigo-400">
-                      📊 點擊查看分帳 / 管理成員與共享
+                      📊 查看詳細分帳 / 管理成員
                     </div>
                   </div>
                 </div>
@@ -1452,15 +1420,15 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                   <button
                     id="download-btn"
                     onClick={handleDownload}
-                    className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-xs font-black hover:bg-slate-200 transition-colors flex items-center gap-1 active:scale-95"
+                    className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-xs font-black hover:bg-slate-200 flex items-center gap-1 active:scale-95 transition-all"
                   >
                     📥 下載
                   </button>
                   <button
                     onClick={handleSmartSort}
-                    className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-black hover:bg-indigo-100 transition-colors flex items-center gap-1 active:scale-95"
+                    className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-black hover:bg-indigo-100 flex items-center gap-1 active:scale-95 transition-all"
                   >
-                    ⚡ 行程自動排序
+                    ⚡ 智慧排序
                   </button>
                   <span className="text-xs font-black text-orange-500 bg-orange-50 px-3 py-2 rounded-xl flex items-center">
                     {spots.length} 個景點
@@ -1469,13 +1437,15 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
               </div>
 
               {isLoading ? (
-                <div className="py-20 text-center text-slate-400 animate-pulse">
-                  尋找行程中...
+                <div className="space-y-4">
+                  {[...Array(5)].map((_, i) => (
+                    <SpotSkeleton key={i} />
+                  ))}
                 </div>
               ) : (
                 <div className="space-y-0">
                   {spots.length === 0 ? (
-                    <div className="py-12 text-center border-2 border-dashed border-orange-100 rounded-[30px] text-orange-300">
+                    <div className="py-12 text-center border-2 border-dashed border-orange-100 rounded-[30px] text-orange-300 font-bold">
                       這天還沒有行程，快加入新地點吧！
                     </div>
                   ) : (
@@ -1497,11 +1467,9 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                                   : "text-slate-500 border-slate-200"
                               }`}
                             >
-                              {spot.transport_mode === "TRANSIT" ? (
-                                <>🚇 搭地鐵</>
-                              ) : (
-                                <>🚶 走路</>
-                              )}
+                              {spot.transport_mode === "TRANSIT"
+                                ? "🚇 搭地鐵"
+                                : "🚶 走路"}
                             </button>
                             {durations[spot.id] && (
                               <span className="ml-2 text-[10px] font-black text-slate-400 bg-slate-100 px-2 py-1 rounded-md">
@@ -1513,10 +1481,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                         <SpotItem
                           spot={spot}
                           members={members}
-                          onSelect={() => {
-                            console.log("Spot selected:", spot.name);
-                            setFocusedSpot(spot);
-                          }}
+                          onSelect={() => setFocusedSpot(spot)}
                           onDelete={(id: string) =>
                             deleteSpot(tripId, id).then(() => initLoad())
                           }
@@ -1534,6 +1499,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                 </div>
               )}
 
+              {/* 加入新地點區塊 */}
               <div className="mt-8 p-5 bg-slate-50 rounded-[32px] relative">
                 <div className="flex gap-2 overflow-x-auto no-scrollbar mb-4">
                   {CATEGORIES.map((c) => (
@@ -1561,9 +1527,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                     <input
                       type="text"
                       value={inputValue}
-                      onChange={(e) => {
-                        setInputValue(e.target.value);
-                      }}
+                      onChange={(e) => setInputValue(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && handleAddSpot()}
                       placeholder={`搜尋想去的${
                         tripData?.country_code === "JP" ? "日本" : "地點"
@@ -1571,14 +1535,14 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                       className="w-full h-[56px] px-5 rounded-2xl bg-white border-none outline-none focus:ring-2 focus:ring-orange-400 font-bold shadow-sm"
                     />
                     {suggestions.length > 0 && (
-                      <div className="absolute left-0 right-0 top-[60px] bg-white border border-slate-100 rounded-2xl shadow-2xl z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div className="absolute left-0 right-0 top-[60px] bg-white border border-slate-100 rounded-2xl shadow-2xl z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2">
                         {suggestions.map((s) => (
                           <button
                             key={s.place_id}
                             onClick={() =>
                               handleSelectSuggestion(s.place_id, s.description)
                             }
-                            className="w-full px-5 py-4 text-left hover:bg-orange-50 text-sm font-bold border-b border-slate-50 last:border-none transition-colors flex items-center gap-3"
+                            className="w-full px-5 py-4 text-left hover:bg-orange-50 text-sm font-bold border-b border-slate-50 last:border-none flex items-center gap-3"
                           >
                             <span className="text-orange-400">📍</span>
                             <span className="truncate">{s.description}</span>
@@ -1588,7 +1552,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                     )}
                     {pendingLocation && (
                       <div className="absolute -bottom-6 left-0 flex items-center gap-1.5 px-2 py-0.5 bg-orange-500 text-white rounded-md text-[9px] font-black shadow-sm animate-bounce">
-                        📍 座標已鎖定: {pendingLocation.lat.toFixed(4)},{" "}
+                        📍 座標鎖定: {pendingLocation.lat.toFixed(4)},{" "}
                         {pendingLocation.lng.toFixed(4)}
                         <button
                           onClick={(e) => {
@@ -1620,11 +1584,9 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                 isLoaded={isLoaded}
                 focusedSpot={focusedSpot}
                 onDurationsChange={setDurations}
-                // ✨ 傳入國家代碼給地圖組件
                 countryCode={tripData?.country_code}
                 onMapClick={(lat, lng) => {
                   setPendingLocation({ lat, lng });
-                  // 如果目前沒打字，給個預設名稱提醒
                   if (!inputValue) setInputValue("地圖標記點");
                 }}
               />
