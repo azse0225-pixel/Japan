@@ -1,21 +1,31 @@
 // components/trip/ExportTemplate.tsx
 import { forwardRef } from "react";
 import { CATEGORIES } from "./constants";
+import { addDays, format } from "date-fns";
+import { zhTW } from "date-fns/locale";
 
+// ✨ 修正重點：在這裡加上 startDate
 interface ExportProps {
   day: number;
   title: string;
   spots: any[];
+  startDate?: string; // 👈 必須在這裡宣告，TypeScript 才會允許傳入
 }
 
 export const ExportTemplate = forwardRef<HTMLDivElement, ExportProps>(
-  ({ day, title, spots }, ref) => {
+  ({ day, title, spots, startDate }, ref) => {
     const totalActual = spots.reduce(
       (sum, s) => sum + (Number(s.actual_cost) || 0),
       0
     );
 
-    // 描邊樣式維持，在變暗的背景上會非常清楚
+    // ✨ 計算日期邏輯
+    const displayDate = startDate
+      ? format(addDays(new Date(startDate), day - 1), "yyyy.MM.dd (eee)", {
+          locale: zhTW,
+        })
+      : "";
+
     const strongOutlineStyle = { textShadow: "0px 1px 3px rgba(0,0,0,0.6)" };
 
     return (
@@ -25,26 +35,24 @@ export const ExportTemplate = forwardRef<HTMLDivElement, ExportProps>(
           className="w-[500px] h-[800px] bg-[#fdfdfd] p-0 overflow-hidden flex flex-col"
           style={{ fontFamily: "'Inter', sans-serif" }}
         >
-          {/* ✨ Header：100px 高度 */}
+          {/* Header 區塊 */}
           <div
             className="relative flex-shrink-0 flex flex-col justify-end overflow-hidden"
             style={{ height: "100px" }}
           >
-            {/* ✨✨ 修改重點 1：圖片亮度大幅調低至 75% ✨✨ */}
-            {/* brightness-[0.75] 讓整張圖變暗，提供足夠對比度 */}
             <img
               src="/images/header.jpg"
               alt="Header Background"
-              className="absolute inset-0 w-full h-full object-cover z-0 brightness-[0.99]"
+              className="absolute inset-0 w-full h-full object-cover z-0 brightness-[0.9999]"
             />
-
             <div
               className="relative z-20 text-white flex justify-between items-end p-5 pb-2"
               style={strongOutlineStyle}
             >
               <div>
                 <div className="text-white/90 font-black text-[8px] uppercase tracking-[3px] mb-0.5 italic">
-                  Day {day} Itinerary
+                  Day {day} <span className="mx-1 opacity-50">|</span>{" "}
+                  {displayDate}
                 </div>
                 <h1 className="text-xl font-black italic tracking-tighter leading-none">
                   {title || "My Adventure"}
@@ -61,7 +69,7 @@ export const ExportTemplate = forwardRef<HTMLDivElement, ExportProps>(
             </div>
           </div>
 
-          {/* ... 下方內容區塊保持不變 (省略以節省篇幅) ... */}
+          {/* 內容列表區塊 */}
           <div className="flex-1 p-5 pt-4 space-y-2 relative z-10 -mt-1 overflow-hidden">
             {spots.map((s) => {
               const cat =
@@ -100,6 +108,8 @@ export const ExportTemplate = forwardRef<HTMLDivElement, ExportProps>(
               );
             })}
           </div>
+
+          {/* 底部 */}
           <div className="py-6 text-center mt-auto">
             <div className="text-[7px] font-black text-slate-300 uppercase tracking-[5px] opacity-70">
               JAPAN TRIP PLANNER

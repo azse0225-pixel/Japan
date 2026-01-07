@@ -279,6 +279,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
         day={selectedDay}
         title={tripData?.title}
         spots={spots}
+        startDate={tripData?.start_date}
       />
 
       <TripDetailHeader
