@@ -37,6 +37,12 @@ import { ExportTemplate } from "./ExportTemplate";
 const libraries: ("places" | "geometry")[] = ["places", "geometry"];
 
 export default function ItineraryList({ tripId }: { tripId: string }) {
+  if (typeof window !== "undefined") {
+    console.log("組件開始渲染，tripId:", tripId);
+    alert(
+      "環境變數檢查: " + (process.env.NEXT_PUBLIC_SUPABASE_URL || "找不到變數")
+    );
+  }
   // --- 狀態管理 ---
   const [spots, setSpots] = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
