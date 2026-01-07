@@ -1,3 +1,4 @@
+//components/home/QuickEditModal.tsx
 "use client";
 
 import { useState } from "react";
@@ -39,19 +40,41 @@ export default function QuickEditModal({
     }
     setLoading(false);
   };
+
   const handleDelete = async () => {
     if (confirm("確定要永久刪除此行程嗎？此動作無法復原。")) {
       setLoading(true);
       const result = await deleteTrip(trip.id);
+
       if (result.success) {
-        router.refresh();
+        // ✨ 匿名版關鍵修正：同步清理 localStorage 裡的紀錄
+        try {
+          const savedTrips = JSON.parse(
+            localStorage.getItem("my_trips") || "[]"
+          );
+          const updatedTrips = savedTrips.filter(
+            (id: string) => id !== trip.id
+          );
+          localStorage.setItem("my_trips", JSON.stringify(updatedTrips));
+
+          // 清理相關的權限標記
+          localStorage.removeItem(`owner_of_${trip.id}`);
+          localStorage.removeItem(`me_in_${trip.id}`);
+        } catch (e) {
+          console.error("LocalStorage 清理失敗", e);
+        }
+
+        // 重新整理頁面並關閉
         onClose();
+        // 如果是在首頁，強制重新整理以更新清單
+        window.location.reload();
       } else {
         alert("刪除失敗：" + result.message);
         setLoading(false);
       }
     }
   };
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-white w-full max-w-sm p-8 rounded-[40px] shadow-2xl animate-in zoom-in duration-200 border-4 border-orange-100">
@@ -120,7 +143,6 @@ export default function QuickEditModal({
                 <option value="TH">🇹🇭 泰國 (Thailand)</option>
                 <option value="US">🇺🇸 美國 (USA)</option>
               </select>
-              {/* 自定義下拉箭頭 */}
               <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-300 text-xs">
                 ▼
               </div>

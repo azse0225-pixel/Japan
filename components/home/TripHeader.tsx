@@ -1,4 +1,6 @@
+// components/home/TripHeader.tsx
 "use client";
+
 import { useState } from "react";
 import AddTripModal from "./AddTripModal";
 
@@ -23,6 +25,8 @@ export default function TripHeader() {
           + 開始新旅程
         </button>
       </header>
+
+      {/* ✨ 修正點：正確傳入 onClose 屬性 */}
       {showModal && <AddTripModal onClose={() => setShowModal(false)} />}
     </>
   );

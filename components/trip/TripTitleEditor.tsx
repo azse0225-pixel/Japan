@@ -1,3 +1,4 @@
+//components/trip/TripTitleEditor.tsx
 "use client";
 
 import { useState } from "react";
@@ -10,15 +11,18 @@ export default function TripTitleEditor({ trip }: { trip: any }) {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const [imageUrl, setImageUrl] = useState(trip.image_url || "");
+
   const handleSave = async () => {
     setLoading(true);
+    // 這裡呼叫的 Server Action 在純匿名版中僅透過 trip.id 辨識更新對象
     const result = await updateTripDetails(trip.id, {
       title,
       image_url: imageUrl, // ✨ 同步更新圖片網址
     });
+
     if (result.success) {
       setIsEditing(false);
-      router.refresh();
+      router.refresh(); // 刷新頁面獲取最新資料
     } else {
       alert("儲存失敗");
     }
@@ -27,28 +31,36 @@ export default function TripTitleEditor({ trip }: { trip: any }) {
 
   if (isEditing) {
     return (
-      <div className="flex items-center gap-2 mb-4">
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className="text-3xl font-black text-slate-800 border-b-2 border-orange-500 bg-transparent outline-none px-2 py-1"
-          autoFocus
-        />
+      <div className="flex flex-col gap-2 mb-4">
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="text-3xl font-black text-slate-800 border-b-2 border-orange-500 bg-transparent outline-none px-2 py-1"
+            autoFocus
+          />
+          <button
+            onClick={handleSave}
+            disabled={loading}
+            className="bg-orange-500 text-white px-4 py-2 rounded-xl font-bold text-sm"
+          >
+            {loading ? "..." : "儲存"}
+          </button>
+          <button
+            onClick={() => setIsEditing(false)}
+            className="text-slate-400 text-sm hover:text-slate-600"
+          >
+            取消
+          </button>
+        </div>
         <input
           type="text"
           placeholder="貼上封面圖片網址"
           value={imageUrl}
           onChange={(e) => setImageUrl(e.target.value)}
-          className="w-full text-xs text-slate-400 mt-2 bg-slate-50 p-2 rounded border-none outline-none"
+          className="w-full text-xs text-slate-400 bg-slate-50 p-2 rounded border-none outline-none"
         />
-        <button
-          onClick={handleSave}
-          disabled={loading}
-          className="bg-orange-500 text-white px-4 py-2 rounded-xl font-bold text-sm"
-        >
-          {loading ? "..." : "儲存"}
-        </button>
       </div>
     );
   }

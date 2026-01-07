@@ -1,3 +1,4 @@
+//components/trip/MapComponent.tsx 這行不能刪，為了讓你辨識檔案
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";

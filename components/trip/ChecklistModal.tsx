@@ -1,3 +1,4 @@
+//components/trip/ChecklistModal.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -56,7 +57,8 @@ export default function ChecklistModal({ tripId, isOpen, onClose }: any) {
 
   const handleDelete = async (id: string) => {
     setItems(items.filter((i) => i.id !== id));
-    await deleteChecklistItem(id);
+    // ✨ 修正：依照後端 Action 要求傳入 tripId 以正確執行 revalidatePath
+    await deleteChecklistItem(id, tripId);
   };
 
   if (!isOpen) return null;
@@ -73,11 +75,6 @@ export default function ChecklistModal({ tripId, isOpen, onClose }: any) {
       />
 
       {/* 視窗本體 */}
-      {/* ✨ 手機版優化重點：
-         1. rounded-t-[32px] (手機只有上面圓角) sm:rounded-[32px] (電腦全圓角)
-         2. animate-in slide-in-from-bottom (由下往上滑入動畫)
-         3. max-h-[85vh] (給手機鍵盤多一點空間)
-      */}
       <div className="relative bg-white w-full max-w-md rounded-t-[32px] sm:rounded-[32px] shadow-2xl flex flex-col max-h-[85vh] animate-in slide-in-from-bottom duration-300 sm:zoom-in-95 border-t-4 sm:border-4 border-white">
         {/* 手機版把手 (Visual Handle) */}
         <div
@@ -149,7 +146,6 @@ export default function ChecklistModal({ tripId, isOpen, onClose }: any) {
         </div>
 
         {/* 輸入區 */}
-        {/* ✨ 手機版優化：pb-8 (避開 iPhone 底部橫條) */}
         <div className="p-4 bg-slate-50 border-t border-slate-100 pb-8 sm:pb-4 rounded-b-none sm:rounded-b-[28px]">
           <div className="flex gap-2">
             <input
@@ -158,9 +154,11 @@ export default function ChecklistModal({ tripId, isOpen, onClose }: any) {
               onChange={(e) => setNewItem(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleAdd()}
               placeholder="新增項目 (例如: 買網卡)..."
-              // text-base 防止 iOS 自動放大頁面
               className="flex-1 px-4 py-3 rounded-xl border-none outline-none focus:ring-2 focus:ring-orange-300 font-bold text-base text-slate-900 bg-white placeholder:text-slate-400"
-              autoFocus={!/Mobi|Android/i.test(navigator.userAgent)} // 手機版不自動 focus，避免鍵盤一打開就跳出來擋住畫面
+              autoFocus={
+                typeof window !== "undefined" &&
+                !/Mobi|Android/i.test(navigator.userAgent)
+              }
             />
             <button
               onClick={handleAdd}

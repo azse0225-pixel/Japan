@@ -9,9 +9,7 @@ export default function AddTripModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
-  // 狀態初始化 (對標修改彈窗的欄位)
   const [title, setTitle] = useState("");
-  const [slug, setSlug] = useState("");
   const [location, setLocation] = useState("");
   const [startDate, setStartDate] = useState("");
   const [countryCode, setCountryCode] = useState("");
@@ -28,21 +26,45 @@ export default function AddTripModal({ onClose }: { onClose: () => void }) {
       country_code: countryCode,
     };
 
-    const result = await createNewTrip(data);
+    try {
+      const result = await createNewTrip(data);
 
-    if (result.success) {
-      // 2. ✨ 關鍵：重新整理頁面數據，確保首頁出現新旅程
-      router.refresh();
-      onClose();
-    } else {
-      alert("更新失敗: " + result.message);
+      if (result.success && result.id) {
+        // ✨✨✨ 關鍵：這段絕對不能漏掉 ✨✨✨
+        // 1. 先抓出舊的清單
+        const oldTrips = JSON.parse(localStorage.getItem("my_trips") || "[]");
+
+        // 2. 把新的 ID 塞進去 (去重檢查)
+        if (!oldTrips.includes(result.id)) {
+          const newTrips = [...oldTrips, result.id];
+          // 3. 存回口袋
+          localStorage.setItem("my_trips", JSON.stringify(newTrips));
+        }
+
+        // 標記我是創辦人
+        localStorage.setItem(`owner_of_${result.id}`, "true");
+
+        console.log("✅ 成功存入口袋:", result.id);
+        // ✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨
+
+        onClose();
+        // 直接跳轉到行程頁面
+        router.push(`/trip/${result.id}`);
+        // 強制刷新首頁狀態
+        router.refresh();
+      } else {
+        alert("建立失敗: " + (result.message || "未知錯誤"));
+      }
+    } catch (err) {
+      console.error("建立過程出錯:", err);
+      alert("系統錯誤");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      {/* 視窗本體 - 對標修改視窗樣式 */}
       <div className="bg-white w-full max-w-sm p-8 rounded-[40px] shadow-2xl animate-in zoom-in duration-200 border-4 border-orange-100">
         <div className="text-center mb-6">
           <div className="text-3xl mb-2">🗓️</div>
@@ -50,7 +72,6 @@ export default function AddTripModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* 行程名稱 */}
           <div className="space-y-1">
             <label className="text-xs font-black text-slate-400 ml-2">
               行程名稱
@@ -64,7 +85,6 @@ export default function AddTripModal({ onClose }: { onClose: () => void }) {
               placeholder="例如：日本櫻花祭"
             />
           </div>
-          {/* 地點 */}
           <div className="space-y-1">
             <label className="text-xs font-black text-slate-400 ml-2">
               地點
@@ -78,8 +98,6 @@ export default function AddTripModal({ onClose }: { onClose: () => void }) {
               placeholder="例如：日本，東京"
             />
           </div>
-
-          {/* 出發日期 */}
           <div className="space-y-1">
             <label className="text-xs font-black text-slate-400 ml-2">
               出發日期
@@ -92,11 +110,9 @@ export default function AddTripModal({ onClose }: { onClose: () => void }) {
               className="w-full px-5 py-3 bg-slate-50 border-none rounded-2xl font-bold focus:ring-2 focus:ring-orange-300 outline-none text-slate-900"
             />
           </div>
-
-          {/* 地圖搜尋區域限制 - 完全複製修改彈窗邏輯 */}
           <div className="space-y-1">
             <label className="text-xs font-black text-slate-400 ml-2">
-              地圖搜尋區域限制
+              區域限制
             </label>
             <div className="relative">
               <select
@@ -106,19 +122,17 @@ export default function AddTripModal({ onClose }: { onClose: () => void }) {
                 className="w-full px-5 py-3 bg-slate-50 border-none rounded-2xl font-bold focus:ring-2 focus:ring-orange-300 outline-none text-slate-900 appearance-none cursor-pointer"
               >
                 <option value="">🌎 選擇區域</option>
-                <option value="TW">🇹🇼 台灣 (Taiwan)</option>
-                <option value="JP">🇯🇵 日本 (Japan)</option>
-                <option value="KR">🇰🇷 韓國 (Korea)</option>
-                <option value="TH">🇹🇭 泰國 (Thailand)</option>
-                <option value="US">🇺🇸 美國 (USA)</option>
+                <option value="TW">🇹🇼 台灣</option>
+                <option value="JP">🇯🇵 日本</option>
+                <option value="KR">🇰🇷 韓國</option>
+                <option value="TH">🇹🇭 泰國</option>
+                <option value="US">🇺🇸 美國</option>
               </select>
               <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-300 text-xs">
                 ▼
               </div>
             </div>
           </div>
-
-          {/* 按鈕組 */}
           <div className="flex gap-3 pt-4">
             <button
               type="button"

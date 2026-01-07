@@ -1,30 +1,51 @@
 // app/page.tsx
+"use client"; // ✨ 必須改為 Client Component 才能讀取 localStorage
+
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { supabase } from "@/lib/supabase";
 import TripHeader from "@/components/home/TripHeader";
-import { redirect } from "next/navigation";
 import EditButton from "@/components/home/EditButton";
-import { getUserTrips } from "@/lib/actions/trip-actions";
+import { getTripsByIds } from "@/lib/actions/trip-actions";
 
-export default async function HomePage() {
-  // 1. 檢查登入狀態
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+export default function HomePage() {
+  const [trips, setTrips] = useState<any[]>([]);
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  // 2. 如果沒登入，強制跳轉到登入頁
-  if (!user) {
-    redirect("/login");
-  }
-
-  // 3. ✨ 核心修正：直接調用封裝好「去重邏輯」的後端 Action
-  // 這會同時抓取「我創辦的」與「我被邀請的」，並保證同 ID 行程只出現一次
-  const trips = await getUserTrips();
-
-  // 預設圖片 (東京插畫)
+  // 預設圖片
   const defaultImg =
     "https://img.freepik.com/free-vector/tokyo-landmark-skyline-illustration_23-2148902094.jpg";
+
+  useEffect(() => {
+    const loadAllTrips = async () => {
+      setLoading(true);
+      try {
+        // 1. 取得登入狀態 (即使是匿名版，也要檢查是否有登入)
+        const {
+          data: { user: authUser },
+        } = await supabase.auth.getUser();
+        setUser(authUser);
+
+        // 2. ✨ 核心邏輯：從口袋 (localStorage) 翻出匿名行程 ID
+        const localSavedIds = JSON.parse(
+          localStorage.getItem("my_trips") || "[]"
+        );
+
+        // 3. 呼叫後端 Action，根據這些 ID 去抓完整的行程資料
+        if (localSavedIds.length > 0) {
+          const data = await getTripsByIds(localSavedIds);
+          setTrips(data);
+        }
+      } catch (error) {
+        console.error("載入行程失敗:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadAllTrips();
+  }, []);
 
   return (
     <main className="min-h-screen bg-[#FFF7ED] p-8 md:p-16 text-slate-800">
@@ -34,36 +55,49 @@ export default async function HomePage() {
           <div className="flex items-center gap-4 bg-white/50 px-5 py-2.5 rounded-2xl border border-orange-100 shadow-sm backdrop-blur-md">
             <div className="flex flex-col items-end">
               <span className="text-sm font-black text-slate-700">
-                {user.user_metadata?.full_name || user.email?.split("@")[0]}
+                {user
+                  ? user.user_metadata?.full_name || user.email?.split("@")[0]
+                  : "訪客模式"}
               </span>
               <span className="text-[10px] font-bold text-slate-400">
-                {user.email}
+                {user ? user.email : "未登入 (行程儲存於此瀏覽器)"}
               </span>
             </div>
 
             <div className="w-[1px] h-6 bg-orange-100 mx-1" />
 
-            <form
-              action={async () => {
-                "use server";
-                const sb = await createSupabaseServerClient();
-                await sb.auth.signOut();
-                redirect("/login");
-              }}
-            >
-              <button className="text-xs font-black text-orange-500 hover:text-orange-700 transition-colors uppercase tracking-widest">
+            {user ? (
+              <button
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  window.location.reload();
+                }}
+                className="text-xs font-black text-orange-500 hover:text-orange-700 transition-colors uppercase tracking-widest"
+              >
                 登出
               </button>
-            </form>
+            ) : (
+              <Link
+                href="/login"
+                className="text-xs font-black text-blue-500 hover:text-blue-700 transition-colors uppercase tracking-widest"
+              >
+                登入 / 註冊
+              </Link>
+            )}
           </div>
         </div>
 
-        {/* 頁面標題與功能按鈕 (開始新旅程) */}
+        {/* 頁面標題與功能按鈕 */}
         <TripHeader />
 
         {/* 旅程卡片網格 */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10 mt-10">
-          {trips && trips.length > 0 ? (
+          {loading ? (
+            // 載入中的骨架屏或簡單文字
+            <div className="col-span-full text-center py-20 text-orange-300 font-bold">
+              正在清點行程物品... 🎒
+            </div>
+          ) : trips.length > 0 ? (
             trips.map((trip: any) => (
               <div key={trip.id} className="relative group">
                 {/* 卡片主體 */}
@@ -102,7 +136,7 @@ export default async function HomePage() {
                   </div>
                 </Link>
 
-                {/* 快速編輯按鈕 (包含刪除功能) */}
+                {/* 快速編輯按鈕 */}
                 <div className="absolute top-6 right-6 z-30">
                   <EditButton trip={trip} />
                 </div>
