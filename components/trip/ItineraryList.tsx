@@ -1,4 +1,3 @@
-// components/trip/ItineraryList.tsx
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
@@ -23,18 +22,22 @@ import {
 
 import { useJsApiLoader } from "@react-google-maps/api";
 import { toPng } from "html-to-image";
-import MapComponent from "./MapComponent";
-import ChecklistModal from "./ChecklistModal";
 
 // ✨ 匯入拆分好的組件
 import TripDetailHeader from "./TripDetailHeader";
-import AddSpotForm from "./AddSpotForm";
+import DayTabs from "./DayTabs";
 import SpotItem from "./SpotItem";
+import AddSpotForm from "./AddSpotForm";
+import MapComponent from "./MapComponent";
+import ChecklistModal from "./ChecklistModal";
+import MemberModal from "./MemberModal";
+import DeleteConfirmModal from "./DeleteConfirmModal";
 import { ExportTemplate } from "./ExportTemplate";
 
 const libraries: ("places" | "geometry")[] = ["places", "geometry"];
 
 export default function ItineraryList({ tripId }: { tripId: string }) {
+  // --- 狀態管理 ---
   const [spots, setSpots] = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
   const [inputValue, setInputValue] = useState("");
@@ -60,12 +63,14 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
   const exportRef = useRef<HTMLDivElement>(null);
   const saveTimerRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
 
+  // --- Google Maps Loader ---
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
     libraries,
     language: "zh-TW",
   });
 
+  // --- 資料初始化與實時同步 ---
   const initLoad = async (resetFocus = true) => {
     if (resetFocus) setFocusedSpot(null);
     setIsLoading(true);
@@ -75,11 +80,13 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
         getTripData(tripId),
         getTripMembers(tripId, localMemberId || undefined),
       ]);
+
       if (tData) {
         setTripData(tData);
         setDays(Array.from({ length: tData.days_count || 1 }, (_, i) => i + 1));
       }
       setMembers(mData || []);
+
       const sData = await getSpots(tripId, selectedDay);
       setSpots(
         (sData || []).sort((a: any, b: any) =>
@@ -123,7 +130,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     };
   }, [tripId, selectedDay]);
 
-  // ✨ Google 地點建議監聽
+  // --- 地點建議邏輯 ---
   useEffect(() => {
     if (!isLoaded || !inputValue || inputValue.length < 2) {
       setSuggestions([]);
@@ -143,31 +150,22 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     return () => clearTimeout(timeoutId);
   }, [inputValue, isLoaded, tripData?.country_code]);
 
-  // components/trip/ItineraryList.tsx
-
+  // --- 下載圖片邏輯 ---
   const handleDownload = async () => {
-    // 1. 安全檢查：確保截圖目標存在
-    if (!exportRef.current) {
-      console.error("找不到截圖目標 (exportRef.current is null)");
-      return;
-    }
-
+    if (!exportRef.current) return;
     const btn = document.getElementById("download-btn");
     if (btn) {
       btn.innerText = "生成中...";
-      btn.style.pointerEvents = "none"; // 防止重複點擊
+      btn.style.pointerEvents = "none";
     }
 
     try {
-      // 2. 使用更穩定且寬鬆的設定
       const dataUrl = await toPng(exportRef.current, {
-        cacheBust: true, // 清除快取，解決圖片不更新問題
-        pixelRatio: 2, // 從 3 降到 2，減少記憶體負擔（畫質依然很好）
-        skipFonts: true, // 🚀 關鍵：跳過字體檢查，這通常是導致卡死的主因
-        fontEmbedCSS: "", // 禁用字體嵌入，加快速度
-        style: {
-          visibility: "visible", // 確保截圖時是可見的
-        },
+        cacheBust: true,
+        pixelRatio: 2,
+        skipFonts: true,
+        fontEmbedCSS: "",
+        style: { visibility: "visible" },
       });
 
       const link = document.createElement("a");
@@ -175,8 +173,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
       link.href = dataUrl;
       link.click();
     } catch (err) {
-      console.error("下載 PNG 出錯:", err);
-      alert("圖片生成失敗，請稍後再試或檢查網路連線。");
+      alert("圖片生成失敗");
     } finally {
       if (btn) {
         btn.innerText = "📥 下載";
@@ -185,30 +182,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     }
   };
 
-  const handleSelectSuggestion = async (
-    placeId: string,
-    description: string
-  ) => {
-    setSuggestions([]);
-    setIsLoading(true);
-    try {
-      // @ts-ignore
-      const place = new google.maps.places.Place({ id: placeId });
-      await place.fetchFields({ fields: ["displayName", "location"] });
-      if (place.location) {
-        setInputValue(place.displayName || description);
-        setPendingLocation({
-          lat: place.location.lat(),
-          lng: place.location.lng(),
-        });
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+  // --- 處理地點新增 ---
   const handleAddSpot = async () => {
     if (!inputValue.trim()) return;
     setIsLoading(true);
@@ -255,6 +229,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     saveTimerRef.current[id] = setTimeout(() => updateSpotNote(id, note), 800);
   };
 
+  // --- 結算邏輯 ---
   const settlement = useMemo(() => {
     const b: any = {};
     members.forEach((m) => (b[m.id] = 0));
@@ -272,8 +247,8 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
   }, [spots, members]);
 
   return (
-    <div className="w-full pb-20">
-      {/* 隱藏截圖層 */}
+    <div className="w-full pb-20 bg-slate-50/50 min-h-screen">
+      {/* 隱藏的下載模板 */}
       <ExportTemplate
         ref={exportRef}
         day={selectedDay}
@@ -282,50 +257,34 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
         startDate={tripData?.start_date}
       />
 
+      {/* ✨ 頂部導覽列：含日期顯示 ✨ */}
       <TripDetailHeader
         title={tripData?.title}
+        startDate={tripData?.start_date}
+        selectedDay={selectedDay}
+        onBack={() => window.history.back()}
         onOpenChecklist={() => setIsChecklistOpen(true)}
       />
 
-      <div className="max-w-7xl mx-auto -mt-6 px-4">
-        {/* 天數切換區 */}
-        <div className="flex items-center gap-3 overflow-x-auto no-scrollbar py-6">
-          {days.map((day) => (
-            <div key={day} className="relative flex-shrink-0">
-              <button
-                onClick={() => setSelectedDay(day)}
-                className={`px-6 py-3 rounded-2xl font-black border-2 transition-all ${
-                  selectedDay === day
-                    ? "bg-orange-500 text-white border-orange-500 shadow-xl scale-105"
-                    : "bg-white text-orange-400 border-orange-100 shadow-sm"
-                }`}
-              >
-                DAY {day}
-              </button>
-              <button
-                onClick={() => {
-                  setTargetDeleteDay(day);
-                  setIsModalOpen(true);
-                }}
-                className="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center bg-slate-200 text-white rounded-full text-[10px] hover:bg-red-400 transition-colors"
-              >
-                ✕
-              </button>
-            </div>
-          ))}
-          <button
-            onClick={async () => {
-              const n = days.length + 1;
-              await updateTripDays(tripId, n);
-              initLoad(false);
-            }}
-            className="px-8 py-3 rounded-2xl border-2 border-dashed border-orange-200 text-orange-400 font-black hover:bg-orange-50 transition-colors"
-          >
-            + DAY
-          </button>
-        </div>
+      <div className="max-w-7xl mx-auto px-4">
+        {/* ✨ 天數切換區：含日期小標籤 ✨ */}
+        <DayTabs
+          days={days}
+          selectedDay={selectedDay}
+          startDate={tripData?.start_date}
+          onSelectDay={setSelectedDay}
+          onAddDay={async () => {
+            await updateTripDays(tripId, days.length + 1);
+            initLoad(false);
+          }}
+          onDeleteClick={(day) => {
+            setTargetDeleteDay(day);
+            setIsModalOpen(true);
+          }}
+        />
 
         <div className="flex flex-col lg:flex-row gap-6">
+          {/* 左側：行程清單 */}
           <div className="flex-1">
             <div className="bg-white/80 backdrop-blur-md p-6 sm:p-8 rounded-[40px] shadow-xl border border-white">
               <div className="flex justify-between items-center mb-6">
@@ -342,7 +301,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                     onClick={() => setIsMemberModalOpen(true)}
                     className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-black hover:bg-indigo-100 transition-colors"
                   >
-                    📊 分帳成員
+                    📊 分帳
                   </button>
                 </div>
               </div>
@@ -359,13 +318,10 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                 ) : (
                   spots.map((spot, idx) => (
                     <div key={spot.id} className="relative">
-                      {/* ✨ 修正 1：加入垂直連接線與交通按鈕 ✨ */}
+                      {/* 交通連接線邏輯 */}
                       {idx > 0 && (
-                        <div className="flex items-center ml-10 my-1 h-10 relative">
-                          {/* 垂直虛線：從上一張卡片連到這一張 */}
-                          <div className="absolute left-[18px] top-[-15px] bottom-[-15px] w-[2px] bg-slate-100 -z-0"></div>
-
-                          {/* 交通工具切換紐 */}
+                        <div className="flex items-center ml-10 my-0.5 h-7 relative">
+                          <div className="absolute left-[18px] top-[-10px] bottom-[-10px] w-[2px] bg-slate-100 -z-0"></div>
                           <button
                             onClick={() =>
                               updateSpotTransportMode(
@@ -375,9 +331,9 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                                   : "TRANSIT"
                               ).then(() => initLoad(false))
                             }
-                            className="relative z-10 bg-white border border-slate-200 px-3 py-1 rounded-full text-[10px] font-black shadow-sm hover:border-orange-300 hover:text-orange-500 transition-all flex items-center gap-1.5 active:scale-95"
+                            className="relative z-10 bg-white border border-slate-200 px-3 py-0.5 rounded-full text-[10px] font-black shadow-sm hover:border-orange-300 flex items-center gap-1.5 transition-all active:scale-95"
                           >
-                            <span className="text-xs">
+                            <span>
                               {spot.transport_mode === "TRANSIT" ? "🚇" : "🚶"}
                             </span>
                             <span>
@@ -394,7 +350,6 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                         </div>
                       )}
 
-                      {/* ✨ 修正 2：景點卡片本體 ✨ */}
                       <SpotItem
                         spot={spot}
                         members={members}
@@ -403,20 +358,20 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                           deleteSpot(tripId, id).then(() => initLoad(false))
                         }
                         onNoteChange={handleNoteChange}
-                        onCategoryChange={(id: any, cat: any) =>
+                        onCategoryChange={(id, cat) =>
                           updateSpotCategory(id, cat).then(() =>
                             initLoad(false)
                           )
                         }
-                        onTimeChange={(id: any, t: any) =>
+                        onTimeChange={(id, t) =>
                           updateSpotTime(id, t).then(() => initLoad(false))
                         }
-                        onCostChange={(id: any, est: any, act: any) =>
+                        onCostChange={(id, est, act) =>
                           updateSpotCost(id, est, act).then(() =>
                             initLoad(false)
                           )
                         }
-                        onSplitChange={(id: any, p: any, inv: any) =>
+                        onSplitChange={(id, p, inv) =>
                           updateSpotSplit(id, p, inv).then(() =>
                             initLoad(false)
                           )
@@ -428,11 +383,29 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                 )}
               </div>
 
+              {/* 新增地點表單 */}
               <AddSpotForm
                 inputValue={inputValue}
                 setInputValue={setInputValue}
                 suggestions={suggestions}
-                onSelectSuggestion={handleSelectSuggestion}
+                onSelectSuggestion={(id, desc) => {
+                  setSuggestions([]);
+                  setIsLoading(true);
+                  // @ts-ignore
+                  const place = new google.maps.places.Place({ id });
+                  place
+                    .fetchFields({ fields: ["displayName", "location"] })
+                    .then(() => {
+                      if (place.location) {
+                        setInputValue(place.displayName || desc);
+                        setPendingLocation({
+                          lat: place.location.lat(),
+                          lng: place.location.lng(),
+                        });
+                      }
+                      setIsLoading(false);
+                    });
+                }}
                 pendingLocation={pendingLocation}
                 setPendingLocation={setPendingLocation}
                 selectedCategory={selectedCategory}
@@ -444,8 +417,9 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
             </div>
           </div>
 
+          {/* 右側：地圖 */}
           <div className="lg:w-[380px]">
-            <div className="sticky top-6 h-[400px] lg:h-[600px] bg-white p-2 rounded-[40px] shadow-2xl border-4 border-white overflow-hidden">
+            <div className="sticky top-24 h-[400px] lg:h-[600px] bg-white p-2 rounded-[40px] shadow-2xl border-4 border-white overflow-hidden">
               <MapComponent
                 spots={spots}
                 isLoaded={isLoaded}
@@ -462,130 +436,36 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
         </div>
       </div>
 
-      {/* 刪除 Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-orange-900/40 backdrop-blur-sm"
-            onClick={() => setIsModalOpen(false)}
-          />
-          <div className="relative bg-white rounded-[40px] p-10 w-full max-w-sm shadow-2xl text-center">
-            <h3 className="text-2xl font-black mb-2 text-slate-800">
-              確定刪除嗎？
-            </h3>
-            <p className="text-slate-500 mb-8 font-bold">
-              Day {targetDeleteDay} 的行程會清空喔
-            </p>
-            <div className="flex flex-col gap-3">
-              <button
-                onClick={async () => {
-                  await deleteSpecificDay(
-                    tripId,
-                    targetDeleteDay!,
-                    days.length
-                  );
-                  setIsModalOpen(false);
-                  initLoad();
-                }}
-                className="py-4 bg-orange-500 text-white rounded-2xl font-black shadow-lg shadow-orange-200"
-              >
-                確認刪除
-              </button>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="py-4 bg-slate-100 text-slate-500 rounded-2xl font-black"
-              >
-                取消
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 各種彈窗 */}
+      <MemberModal
+        isOpen={isMemberModalOpen}
+        onClose={() => setIsMemberModalOpen(false)}
+        members={members}
+        settlement={settlement}
+        newMemberName={newMemberName}
+        setNewMemberName={setNewMemberName}
+        onAddMember={async () => {
+          if (newMemberName) {
+            await addTripMember(tripId, newMemberName);
+            initLoad();
+            setNewMemberName("");
+          }
+        }}
+        onDeleteMember={(id) =>
+          deleteTripMember(id, tripId).then(() => initLoad())
+        }
+      />
 
-      {/* 分帳 Modal */}
-      {isMemberModalOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
-            onClick={() => setIsMemberModalOpen(false)}
-          />
-          <div className="relative bg-white rounded-[40px] p-8 w-full max-w-md shadow-2xl h-[85vh] flex flex-col">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-black text-slate-800">
-                📊 成員與分帳
-              </h3>
-              <button
-                onClick={() => setIsMemberModalOpen(false)}
-                className="text-slate-300 hover:text-slate-600 font-bold text-xl"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
-              {members.map((m) => (
-                <div
-                  key={m.id}
-                  className="bg-slate-50 p-4 rounded-3xl flex justify-between items-center border border-slate-100"
-                >
-                  <span className="font-black text-slate-700">{m.name}</span>
-                  {!m.isOwner && (
-                    <button
-                      onClick={() =>
-                        deleteTripMember(m.id, tripId).then(() => initLoad())
-                      }
-                      className="text-slate-400 hover:text-red-500 text-xs font-bold"
-                    >
-                      ✕ 移除
-                    </button>
-                  )}
-                </div>
-              ))}
-              <div className="mt-6 p-4 bg-orange-50 rounded-3xl border-2 border-dashed border-orange-200 flex gap-2">
-                <input
-                  type="text"
-                  placeholder="新成員名稱"
-                  value={newMemberName}
-                  onChange={(e) => setNewMemberName(e.target.value)}
-                  className="bg-white rounded-2xl px-4 py-3 text-sm flex-1 font-bold outline-none border border-orange-100"
-                />
-                <button
-                  onClick={async () => {
-                    if (newMemberName) {
-                      await addTripMember(tripId, newMemberName);
-                      initLoad();
-                      setNewMemberName("");
-                    }
-                  }}
-                  className="bg-orange-500 text-white px-6 py-3 rounded-2xl font-black shadow-lg shadow-orange-200"
-                >
-                  +
-                </button>
-              </div>
-            </div>
-            <div className="mt-6 bg-slate-900 rounded-[32px] p-6 text-white overflow-y-auto max-h-[45%] shadow-inner">
-              <h4 className="text-[10px] font-black text-slate-400 uppercase mb-4 text-center tracking-[4px]">
-                Settlement
-              </h4>
-              {settlement.map((m) => (
-                <div
-                  key={m.id}
-                  className="flex justify-between items-center bg-white/10 p-3 rounded-2xl mb-2 border border-white/5"
-                >
-                  <span className="font-bold text-sm">{m.name}</span>
-                  <span
-                    className={`font-mono font-bold ${
-                      m.balance >= 0 ? "text-green-400" : "text-red-400"
-                    }`}
-                  >
-                    {m.balance >= 0 ? "+" : ""}¥
-                    {Math.round(m.balance).toLocaleString()}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      <DeleteConfirmModal
+        isOpen={isModalOpen}
+        day={targetDeleteDay}
+        onClose={() => setIsModalOpen(false)}
+        onConfirm={async () => {
+          await deleteSpecificDay(tripId, targetDeleteDay!, days.length);
+          setIsModalOpen(false);
+          initLoad();
+        }}
+      />
 
       <ChecklistModal
         tripId={tripId}

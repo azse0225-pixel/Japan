@@ -6,6 +6,9 @@ import Link from "next/link";
 interface HeaderProps {
   title: string;
   onOpenChecklist: () => void;
+  onBack: () => void; // ✨ 補上這個屬性，解決報錯
+  startDate?: string; // 👈 補上這個
+  selectedDay: number;
 }
 
 export default function TripDetailHeader({
