@@ -31,7 +31,6 @@ import TripDetailHeader from "./TripDetailHeader";
 import AddSpotForm from "./AddSpotForm";
 import SpotItem from "./SpotItem";
 import { ExportTemplate } from "./ExportTemplate";
-import { CATEGORIES } from "./constants";
 
 const libraries: ("places" | "geometry")[] = ["places", "geometry"];
 
@@ -144,25 +143,45 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     return () => clearTimeout(timeoutId);
   }, [inputValue, isLoaded, tripData?.country_code]);
 
+  // components/trip/ItineraryList.tsx
+
   const handleDownload = async () => {
-    if (!exportRef.current) return;
+    // 1. 安全檢查：確保截圖目標存在
+    if (!exportRef.current) {
+      console.error("找不到截圖目標 (exportRef.current is null)");
+      return;
+    }
+
     const btn = document.getElementById("download-btn");
-    if (btn) btn.innerText = "生成中...";
+    if (btn) {
+      btn.innerText = "生成中...";
+      btn.style.pointerEvents = "none"; // 防止重複點擊
+    }
+
     try {
+      // 2. 使用更穩定且寬鬆的設定
       const dataUrl = await toPng(exportRef.current, {
-        cacheBust: true,
-        backgroundColor: "#f8fafc", // slate-50
-        pixelRatio: 3, // 讓圖片超清晰
-        quality: 1, // 最高品質
+        cacheBust: true, // 清除快取，解決圖片不更新問題
+        pixelRatio: 2, // 從 3 降到 2，減少記憶體負擔（畫質依然很好）
+        skipFonts: true, // 🚀 關鍵：跳過字體檢查，這通常是導致卡死的主因
+        fontEmbedCSS: "", // 禁用字體嵌入，加快速度
+        style: {
+          visibility: "visible", // 確保截圖時是可見的
+        },
       });
+
       const link = document.createElement("a");
-      link.download = `Trip_Day${selectedDay}.png`;
+      link.download = `${tripData?.title || "Trip"}_Day${selectedDay}.png`;
       link.href = dataUrl;
       link.click();
     } catch (err) {
-      alert("截圖失敗");
+      console.error("下載 PNG 出錯:", err);
+      alert("圖片生成失敗，請稍後再試或檢查網路連線。");
     } finally {
-      if (btn) btn.innerText = "📥 下載";
+      if (btn) {
+        btn.innerText = "📥 下載";
+        btn.style.pointerEvents = "auto";
+      }
     }
   };
 
@@ -338,9 +357,14 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                   </div>
                 ) : (
                   spots.map((spot, idx) => (
-                    <div key={spot.id}>
+                    <div key={spot.id} className="relative">
+                      {/* ✨ 修正 1：加入垂直連接線與交通按鈕 ✨ */}
                       {idx > 0 && (
-                        <div className="flex items-center py-3 pl-10 h-14 relative">
+                        <div className="flex items-center ml-10 my-1 h-10 relative">
+                          {/* 垂直虛線：從上一張卡片連到這一張 */}
+                          <div className="absolute left-[18px] top-[-15px] bottom-[-15px] w-[2px] bg-slate-100 -z-0"></div>
+
+                          {/* 交通工具切換紐 */}
                           <button
                             onClick={() =>
                               updateSpotTransportMode(
@@ -350,19 +374,26 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                                   : "TRANSIT"
                               ).then(() => initLoad(false))
                             }
-                            className="relative z-10 px-3 py-1 rounded-full text-[10px] font-black border bg-white shadow-sm -ml-4 hover:border-orange-200"
+                            className="relative z-10 bg-white border border-slate-200 px-3 py-1 rounded-full text-[10px] font-black shadow-sm hover:border-orange-300 hover:text-orange-500 transition-all flex items-center gap-1.5 active:scale-95"
                           >
-                            {spot.transport_mode === "TRANSIT"
-                              ? "🚇 搭地鐵"
-                              : "🚶 走路"}
-                          </button>
-                          {durations[spot.id] && (
-                            <span className="ml-3 text-[10px] font-black text-slate-400 italic">
-                              ⏱️ {durations[spot.id].time || durations[spot.id]}
+                            <span className="text-xs">
+                              {spot.transport_mode === "TRANSIT" ? "🚇" : "🚶"}
                             </span>
-                          )}
+                            <span>
+                              {spot.transport_mode === "TRANSIT"
+                                ? "搭地鐵"
+                                : "走路"}
+                            </span>
+                            {durations[spot.id] && (
+                              <span className="ml-1 pl-1.5 border-l border-slate-100 text-slate-400 italic">
+                                {durations[spot.id].time || durations[spot.id]}
+                              </span>
+                            )}
+                          </button>
                         </div>
                       )}
+
+                      {/* ✨ 修正 2：景點卡片本體 ✨ */}
                       <SpotItem
                         spot={spot}
                         members={members}
