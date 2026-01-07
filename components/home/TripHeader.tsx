@@ -12,7 +12,7 @@ export default function TripHeader() {
       <header className="flex flex-col md:flex-row justify-between items-center mb-16 gap-6">
         <div className="text-center md:text-left">
           <h1 className="text-5xl font-black text-orange-900 tracking-tighter italic">
-            MY ADVENTURES <span className="text-orange-400">.</span>
+            MY ADVENTURES
           </h1>
           <p className="text-orange-800/60 mt-3 font-bold tracking-widest uppercase text-sm">
             準備好開啟新的冒險了嗎？

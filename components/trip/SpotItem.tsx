@@ -66,58 +66,64 @@ export default function SpotItem({
         showCatMenu ? "z-50" : "z-10"
       }`}
     >
-      {/* 第一列：時間、名稱、分類 */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3 flex-1">
-          {/* 時間標籤：恢復活力橘 */}
-          <input
-            type="time"
-            value={spot.time || ""}
-            onChange={(e) => onTimeChange(spot.id, e.target.value)}
-            onClick={(e) => e.stopPropagation()}
-            className="bg-orange-500 text-white font-black px-3 py-1 rounded-xl border-none text-xs outline-none shadow-sm"
-          />
-          <span className="font-bold text-slate-800 text-lg">{spot.name}</span>
+      {/* 第一列：時間、名稱、分類與刪除按鈕 */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex flex-col gap-2 flex-1">
+          {/* 1. 時間標籤與分類按鈕 (縮小並排在最上方) */}
+          <div className="flex items-center gap-2">
+            <input
+              type="time"
+              value={spot.time || ""}
+              onChange={(e) => onTimeChange(spot.id, e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-orange-500 text-white font-black px-2.5 py-0.5 rounded-lg border-none text-[10px] outline-none shadow-sm cursor-pointer"
+            />
 
-          <div className="relative">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowCatMenu(!showCatMenu);
-              }}
-              className={`px-3 py-1 rounded-full text-[10px] font-black shadow-sm transition-transform active:scale-95 ${currentCat.color}`}
-            >
-              {currentCat.icon} {currentCat.label}
-            </button>
+            <div className="relative">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowCatMenu(!showCatMenu);
+                }}
+                className={`px-2 py-0.5 rounded-full text-[9px] font-black shadow-sm transition-transform active:scale-95 ${currentCat.color}`}
+              >
+                {currentCat.icon} {currentCat.label}
+              </button>
 
-            {/* 分類切換選單 */}
-            {showCatMenu && (
-              <div className="absolute left-0 mt-2 w-36 bg-white border border-slate-100 rounded-2xl shadow-2xl z-[100] p-2 animate-in zoom-in duration-200">
-                {CATEGORIES.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onCategoryChange(spot.id, c.id);
-                      setShowCatMenu(false);
-                    }}
-                    className="flex items-center gap-3 w-full px-4 py-2.5 hover:bg-orange-50 rounded-xl text-xs font-bold text-slate-600 transition-colors"
-                  >
-                    <span className="text-sm">{c.icon}</span> {c.label}
-                  </button>
-                ))}
-              </div>
-            )}
+              {/* 分類切換選單 (維持原樣) */}
+              {showCatMenu && (
+                <div className="absolute left-0 mt-2 w-36 bg-white border border-slate-100 rounded-2xl shadow-2xl z-[100] p-2 animate-in zoom-in duration-200">
+                  {CATEGORIES.map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCategoryChange(spot.id, c.id);
+                        setShowCatMenu(false);
+                      }}
+                      className="flex items-center gap-3 w-full px-4 py-2.5 hover:bg-orange-50 rounded-xl text-xs font-bold text-slate-600 transition-colors"
+                    >
+                      <span className="text-sm">{c.icon}</span> {c.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* 2. 行程名稱 (給予獨立一行，寬度充足) */}
+          <span className="font-black text-slate-800 text-lg md:text-xl leading-snug break-words">
+            {spot.name}
+          </span>
         </div>
 
-        {/* 刪除按鈕 */}
+        {/* 3. 刪除按鈕 (維持在右側) */}
         <button
           onClick={(e) => {
             e.stopPropagation();
             onDelete(spot.id);
           }}
-          className="p-2 text-slate-300 hover:text-red-500 transition-colors"
+          className="p-1 -mr-1 text-slate-300 hover:text-red-500 transition-colors shrink-0"
         >
           ✕
         </button>

@@ -16,32 +16,40 @@ export default function TripDetailHeader({
   onOpenChecklist,
 }: HeaderProps) {
   return (
-    <div className="relative h-[240px] w-full bg-orange-100 rounded-t-[40px] overflow-hidden border-b-4 border-white">
-      {/* ✨ 這是您放在 public 資料夾內的本地圖 */}
+    /* 1. 調整高度：手機版減低到 180px，桌機版增加到 300px */
+    <div className="relative min-h-[180px] md:h-[300px] w-full bg-orange-100 rounded-t-[40px] overflow-hidden border-b-4 border-white">
       <img
         src="/images/header.jpg"
         alt="Trip Header"
         className="absolute inset-0 w-full h-full object-cover"
       />
 
-      <div className="absolute inset-0 bg-gradient-to-t from-orange-900/60 via-orange-900/20 to-transparent p-8 md:p-12 flex flex-col justify-end">
+      {/* 遮罩與文字內容容器 */}
+      <div className="absolute inset-0 bg-gradient-to-t from-orange-900/70 via-orange-900/30 to-transparent p-6 md:p-12 flex flex-col justify-end">
+        {/* 返回按鈕 */}
         <Link
           href="/"
-          className="text-white/90 font-black text-xs mb-2 uppercase italic drop-shadow-md hover:text-white transition-colors w-fit"
+          className="text-white/90 font-black text-[10px] md:text-xs mb-2 uppercase italic drop-shadow-md hover:text-white transition-colors w-fit"
         >
           ← Back to trips
         </Link>
-        <h1 className="text-4xl md:text-6xl font-black text-white italic drop-shadow-2xl tracking-tighter">
-          {title || "My Adventure"} <span className="text-orange-400">.</span>
-        </h1>
-      </div>
 
-      <button
-        onClick={onOpenChecklist}
-        className="bg-white/20 backdrop-blur-md border border-white/50 text-white px-6 py-2 rounded-full font-black text-sm absolute bottom-8 right-8 shadow-xl hover:bg-white/30 transition-all active:scale-95"
-      >
-        🎒 行前確認
-      </button>
+        {/* 2. 標題與按鈕容器：手機版 flex-col (上下)，桌機版 md:flex-row (左右) */}
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+          <h1 className="text-3xl md:text-6xl font-black text-white italic drop-shadow-2xl tracking-tighter leading-tight">
+            {title || "My Adventure"}
+            <span className="text-orange-400">.</span>
+          </h1>
+
+          {/* 3. 按鈕：移除 absolute，改用 relative 並取消手機版的固定右邊 */}
+          <button
+            onClick={onOpenChecklist}
+            className="relative md:static w-fit bg-white/20 backdrop-blur-md border border-white/50 text-white px-5 py-2 md:px-6 md:py-3 rounded-full font-black text-xs md:text-sm shadow-xl hover:bg-white/30 transition-all active:scale-95 shrink-0"
+          >
+            🎒 行前確認
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

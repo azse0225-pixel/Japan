@@ -59,7 +59,14 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
   const [newSpotTime, setNewSpotTime] = useState("09:00");
   const [durations, setDurations] = useState<{ [key: string]: any }>({});
   const [tripData, setTripData] = useState<any>(null);
+  const mapRef = useRef<HTMLDivElement>(null);
 
+  const scrollToMap = () => {
+    // 偵測是否為行動裝置 (Tailwind 的 lg 是 1024px)
+    if (window.innerWidth < 1024 && mapRef.current) {
+      mapRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
   const exportRef = useRef<HTMLDivElement>(null);
   const saveTimerRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
 
@@ -353,7 +360,10 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                       <SpotItem
                         spot={spot}
                         members={members}
-                        onSelect={() => setFocusedSpot(spot)}
+                        onSelect={() => {
+                          setFocusedSpot(spot); // 原本的聚焦邏輯
+                          scrollToMap(); // ✨ 新增的捲動邏輯
+                        }}
                         onDelete={(id: string) =>
                           deleteSpot(tripId, id).then(() => initLoad(false))
                         }
@@ -419,7 +429,10 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
 
           {/* 右側：地圖 */}
           <div className="lg:w-[380px]">
-            <div className="sticky top-24 h-[400px] lg:h-[600px] bg-white p-2 rounded-[40px] shadow-2xl border-4 border-white overflow-hidden">
+            <div
+              ref={mapRef}
+              className="sticky top-24 h-[400px] lg:h-[600px] bg-white p-2 rounded-[40px] shadow-2xl border-4 border-white overflow-hidden scroll-mt-24"
+            >
               <MapComponent
                 spots={spots}
                 isLoaded={isLoaded}

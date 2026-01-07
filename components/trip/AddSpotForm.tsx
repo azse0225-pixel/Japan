@@ -31,12 +31,12 @@ export default function AddSpotForm({
 }: AddSpotFormProps) {
   return (
     <div className="mt-8 p-5 bg-slate-50 rounded-[32px] relative border border-slate-100">
-      <div className="flex gap-2 overflow-x-auto no-scrollbar mb-4">
+      <div className="flex flex-wrap gap-2 mb-4">
         {CATEGORIES.map((c) => (
           <button
             key={c.id}
             onClick={() => setSelectedCategory(c.id)}
-            className={`flex-shrink-0 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+            className={`flex-1 min-w-[calc(33.33%-8px)] sm:min-w-[100px] px-4 py-2 rounded-xl text-xs font-black transition-all ${
               selectedCategory === c.id
                 ? "bg-orange-500 text-white shadow-md"
                 : "bg-white text-slate-400 border border-slate-100"

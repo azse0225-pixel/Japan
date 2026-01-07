@@ -55,7 +55,7 @@ export default function HomePage() {
     <main className="min-h-screen bg-[#FFF7ED] p-8 md:p-16 text-slate-800">
       <div className="max-w-6xl mx-auto">
         {/* 右上角使用者資訊區塊 */}
-        <div className="flex justify-end mb-8">
+        {/* <div className="flex justify-end mb-8">
           <div className="flex items-center gap-4 bg-white/50 px-5 py-2.5 rounded-2xl border border-orange-100 shadow-sm backdrop-blur-md">
             <div className="flex flex-col items-end">
               <span className="text-sm font-black text-slate-700">
@@ -89,7 +89,7 @@ export default function HomePage() {
               </Link>
             )}
           </div>
-        </div>
+        </div> */}
 
         {/* 頁面標題與功能按鈕 */}
         <TripHeader />
