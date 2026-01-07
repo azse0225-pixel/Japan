@@ -37,12 +37,6 @@ import { ExportTemplate } from "./ExportTemplate";
 const libraries: ("places" | "geometry")[] = ["places", "geometry"];
 
 export default function ItineraryList({ tripId }: { tripId: string }) {
-  if (typeof window !== "undefined") {
-    console.log("組件開始渲染，tripId:", tripId);
-    alert(
-      "環境變數檢查: " + (process.env.NEXT_PUBLIC_SUPABASE_URL || "找不到變數")
-    );
-  }
   // --- 狀態管理 ---
   const [spots, setSpots] = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
@@ -108,46 +102,6 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
 
   useEffect(() => {
     initLoad();
-    alert("網頁讀取到的 URL 是: " + process.env.NEXT_PUBLIC_SUPABASE_URL);
-    async function debugFetch() {
-      console.log("🔍 [Debug] 準備抓取資料...");
-      console.log("🔍 [Debug] 目前接收到的 tripId:", tripId);
-      console.log(
-        "🔍 [Debug] Supabase URL:",
-        process.env.NEXT_PUBLIC_SUPABASE_URL
-      );
-
-      // 嘗試抓取所有資料，不加篩選（測試連線）
-      const { data: allSpots, error: connectionError } = await supabase
-        .from("spots")
-        .select("id")
-        .limit(1);
-
-      if (connectionError) {
-        console.error("❌ [Debug] 基本連線失敗:", connectionError.message);
-      } else {
-        console.log("✅ [Debug] 基本連線成功，資料庫是有通的");
-      }
-
-      // 嘗試精確抓取
-      const { data, error } = await supabase
-        .from("spots")
-        .select("*")
-        .eq("trip_id", tripId.trim()); // 使用 trim() 避免隱形空格
-
-      if (error) {
-        console.error("❌ [Debug] 篩選抓取失敗:", error.message);
-      } else {
-        console.log("📦 [Debug] 篩選後抓到的資料數量:", data?.length);
-        if (data?.length === 0) {
-          console.warn(
-            "⚠️ [Debug] 查無資料！請核對資料庫 spots 表的 trip_id 是否真的有 " +
-              tripId
-          );
-        }
-      }
-      setIsLoading(false);
-    }
     const channel = supabase
       .channel(`trip-${tripId}`)
       .on(
