@@ -21,24 +21,30 @@ export default function HomePage() {
     const loadAllTrips = async () => {
       setLoading(true);
       try {
-        // 1. 取得登入狀態 (即使是匿名版，也要檢查是否有登入)
+        // 1. 取得登入狀態
         const {
           data: { user: authUser },
         } = await supabase.auth.getUser();
-        setUser(authUser);
+        console.log("🔍 目前使用者狀態:", authUser ? "已登入" : "訪客");
 
-        // 2. ✨ 核心邏輯：從口袋 (localStorage) 翻出匿名行程 ID
-        const localSavedIds = JSON.parse(
-          localStorage.getItem("my_trips") || "[]"
-        );
+        // 2. ✨ 檢查 localStorage
+        const localData = localStorage.getItem("my_trips");
+        console.log("🔍 LocalStorage 原始資料:", localData);
 
-        // 3. 呼叫後端 Action，根據這些 ID 去抓完整的行程資料
+        const localSavedIds = JSON.parse(localData || "[]");
+        console.log("🔍 解析後的 ID 陣列:", localSavedIds);
+
+        // 3. 呼叫後端 Action
         if (localSavedIds.length > 0) {
+          console.log("🚀 準備發送 API 請求，IDs:", localSavedIds);
           const data = await getTripsByIds(localSavedIds);
+          console.log("✅ 從資料庫抓到的結果:", data);
           setTrips(data);
+        } else {
+          console.log("⚠️ LocalStorage 是空的，所以沒有去抓資料庫。");
         }
       } catch (error) {
-        console.error("載入行程失敗:", error);
+        console.error("❌ 載入行程失敗，詳細錯誤:", error);
       } finally {
         setLoading(false);
       }
