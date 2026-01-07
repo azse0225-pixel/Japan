@@ -1,12 +1,11 @@
 // components/trip/SpotItem.tsx
 "use client";
-
 import { useState } from "react";
 import {
   uploadSpotAttachment,
   deleteSpotAttachment,
 } from "@/lib/actions/trip-actions";
-import { CATEGORIES } from "./ItineraryList";
+import { CATEGORIES } from "./constants";
 
 export default function SpotItem({
   spot,
@@ -57,7 +56,7 @@ export default function SpotItem({
             value={spot.time || ""}
             onChange={(e) => onTimeChange(spot.id, e.target.value)}
             onClick={(e) => e.stopPropagation()}
-            className="bg-orange-500 text-white font-black px-2 py-1 rounded-lg border-none text-xs outline-none"
+            className="bg-orange-500 text-white font-black px-2 py-1 rounded-lg border-none text-xs outline-none shadow-sm"
           />
           <span className="font-bold text-slate-800">{spot.name}</span>
           <div className="relative">
@@ -71,7 +70,7 @@ export default function SpotItem({
               {currentCat.icon} {currentCat.label}
             </button>
             {showCatMenu && (
-              <div className="absolute left-0 mt-1 w-32 bg-white border rounded-xl shadow-xl z-[70] p-2 animate-in fade-in zoom-in duration-200">
+              <div className="absolute left-0 mt-1 w-32 bg-white border border-slate-100 rounded-xl shadow-2xl z-[70] p-2 animate-in zoom-in duration-150">
                 {CATEGORIES.map((c) => (
                   <button
                     key={c.id}
@@ -80,7 +79,7 @@ export default function SpotItem({
                       onCategoryChange(spot.id, c.id);
                       setShowCatMenu(false);
                     }}
-                    className="flex items-center gap-2 w-full px-3 py-2 hover:bg-slate-50 rounded-lg text-xs font-bold text-slate-600"
+                    className="flex items-center gap-2 w-full px-3 py-2 hover:bg-slate-50 rounded-lg text-xs font-bold text-slate-600 transition-colors"
                   >
                     {c.icon} {c.label}
                   </button>
@@ -107,7 +106,7 @@ export default function SpotItem({
             setShowCost(!showCost);
             setShowTickets(false);
           }}
-          className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black ${
+          className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all ${
             spot.actual_cost > 0
               ? "bg-emerald-100 text-emerald-600"
               : "bg-slate-100 text-slate-400"
@@ -121,7 +120,7 @@ export default function SpotItem({
             setShowTickets(!showTickets);
             setShowCost(false);
           }}
-          className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black relative ${
+          className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black relative transition-all ${
             spot.attachments?.length > 0
               ? "bg-blue-100 text-blue-600"
               : "bg-slate-100 text-slate-400"
@@ -129,7 +128,7 @@ export default function SpotItem({
         >
           📎
           {spot.attachments?.length > 0 && (
-            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 text-white text-[8px] rounded-full flex items-center justify-center">
+            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 text-white text-[8px] rounded-full flex items-center justify-center font-bold">
               {spot.attachments.length}
             </span>
           )}
@@ -140,7 +139,7 @@ export default function SpotItem({
           onChange={(e) => onNoteChange(spot.id, e.target.value)}
           onClick={(e) => e.stopPropagation()}
           placeholder="備註..."
-          className="flex-1 bg-transparent border-b border-transparent hover:border-slate-200 text-xs text-slate-500 outline-none"
+          className="flex-1 bg-transparent border-b border-transparent hover:border-slate-200 text-xs text-slate-500 outline-none transition-all"
         />
         {spot.actual_cost > 0 && (
           <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
@@ -149,14 +148,13 @@ export default function SpotItem({
         )}
       </div>
 
-      {/* 費用與分帳選單 */}
       {showCost && (
         <div
           className="mt-3 grid grid-cols-2 gap-3 animate-in slide-in-from-top-2 duration-200"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="bg-slate-50 rounded-xl p-2 border border-slate-100">
-            <label className="text-[9px] text-slate-400 font-bold uppercase block">
+            <label className="text-[9px] text-slate-400 font-bold uppercase block mb-0.5">
               預算 ¥
             </label>
             <input
@@ -169,7 +167,7 @@ export default function SpotItem({
             />
           </div>
           <div className="bg-emerald-50 rounded-xl p-2 border border-emerald-100">
-            <label className="text-[9px] text-emerald-600/70 font-bold uppercase block">
+            <label className="text-[9px] text-emerald-600/70 font-bold uppercase block mb-0.5">
               實支 ¥
             </label>
             <input
@@ -185,23 +183,22 @@ export default function SpotItem({
               className="bg-transparent w-full text-base font-black text-emerald-700 outline-none"
             />
           </div>
-          {/* 分帳成員勾選 */}
-          <div className="col-span-2 bg-indigo-50 rounded-xl p-2 border border-indigo-100">
+          <div className="col-span-2 bg-indigo-50 rounded-xl p-3 border border-indigo-100">
             <select
               value={spot.payer_id || ""}
               onChange={(e) =>
                 onSplitChange(spot.id, e.target.value, spot.involved_members)
               }
-              className="text-xs bg-white border rounded px-2 py-1 w-full font-bold text-indigo-700 outline-none mb-2"
+              className="text-xs bg-white border border-indigo-200 rounded-lg px-2 py-1.5 w-full font-bold text-indigo-700 outline-none mb-2"
             >
-              <option value="">(選擇墊錢成員)</option>
+              <option value="">(誰墊錢?)</option>
               {members.map((m: any) => (
                 <option key={m.id} value={m.id}>
                   {m.name}
                 </option>
               ))}
             </select>
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-1.5">
               {members.map((m: any) => {
                 const involved = Array.isArray(spot.involved_members)
                   ? spot.involved_members
@@ -219,9 +216,9 @@ export default function SpotItem({
                           : [...involved, m.id]
                       )
                     }
-                    className={`px-2 py-0.5 rounded text-[9px] font-bold border transition-all ${
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${
                       isChecked
-                        ? "bg-indigo-500 text-white border-indigo-500"
+                        ? "bg-indigo-500 text-white border-indigo-500 shadow-sm"
                         : "bg-white text-indigo-400 border-indigo-100"
                     }`}
                   >
@@ -234,34 +231,49 @@ export default function SpotItem({
         </div>
       )}
 
-      {/* 附件預覽 */}
       {showTickets && (
         <div
           className="mt-2 bg-blue-50 rounded-xl p-3 animate-in slide-in-from-top-2 duration-200"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex justify-between items-center mb-2">
-            <h4 className="text-[10px] font-black text-blue-500">
+          <div className="flex justify-between items-center mb-2.5">
+            <h4 className="text-[10px] font-black text-blue-500 uppercase tracking-widest">
               🎫 票券與附件
             </h4>
-            <label className="bg-blue-500 text-white px-2 py-1 rounded-lg text-[9px] font-bold cursor-pointer">
-              {isUploading ? "..." : "+ 上傳"}
+            <label className="bg-blue-500 text-white px-2.5 py-1 rounded-lg text-[9px] font-bold cursor-pointer hover:bg-blue-600 transition-colors">
+              {isUploading ? "上傳中..." : "+ 上傳"}
               <input
                 type="file"
                 className="hidden"
                 onChange={handleFileUpload}
+                disabled={isUploading}
               />
             </label>
           </div>
-          <div className="grid grid-cols-4 gap-1">
+          <div className="grid grid-cols-4 gap-2">
             {spot.attachments?.map((url: string, idx: number) => (
               <div
                 key={idx}
-                className="relative aspect-square bg-white rounded-lg overflow-hidden border border-blue-100"
+                className="relative aspect-square bg-white rounded-xl overflow-hidden border border-blue-100 shadow-sm group/thumb"
               >
                 <a href={url} target="_blank" rel="noreferrer">
-                  <img src={url} className="w-full h-full object-cover" />
+                  <img
+                    src={url}
+                    alt="attachment"
+                    className="w-full h-full object-cover"
+                  />
                 </a>
+                <button
+                  onClick={async () => {
+                    if (confirm("確定刪除此附件?")) {
+                      await deleteSpotAttachment(spot.id, url);
+                      onAttachmentChange();
+                    }
+                  }}
+                  className="absolute top-1 right-1 bg-red-500 text-white w-4 h-4 rounded-full text-[8px] opacity-0 group-hover/thumb:opacity-100 transition-opacity"
+                >
+                  ✕
+                </button>
               </div>
             ))}
           </div>
