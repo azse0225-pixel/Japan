@@ -21,30 +21,29 @@ export default function HomePage() {
     const loadAllTrips = async () => {
       setLoading(true);
       try {
-        // 1. 取得登入狀態
+        // 1. 取得使用者狀態 (維持原樣)
         const {
           data: { user: authUser },
         } = await supabase.auth.getUser();
-        console.log("🔍 目前使用者狀態:", authUser ? "已登入" : "訪客");
+        setUser(authUser);
 
-        // 2. ✨ 檢查 localStorage
-        const localData = localStorage.getItem("my_trips");
-        console.log("🔍 LocalStorage 原始資料:", localData);
+        // 2. 🔍 修改核心邏輯：不再只靠 localStorage
+        // 直接去資料庫抓「所有」行程，或是你想展示的行程
+        console.log("🚀 準備抓取資料庫所有行程...");
 
-        const localSavedIds = JSON.parse(localData || "[]");
-        console.log("🔍 解析後的 ID 陣列:", localSavedIds);
+        const { data, error } = await supabase
+          .from("trips") // ⚠️ 這裡請確保是你的資料表正確名稱
+          .select("*")
+          .order("created_at", { ascending: false });
 
-        // 3. 呼叫後端 Action
-        if (localSavedIds.length > 0) {
-          console.log("🚀 準備發送 API 請求，IDs:", localSavedIds);
-          const data = await getTripsByIds(localSavedIds);
-          console.log("✅ 從資料庫抓到的結果:", data);
-          setTrips(data);
+        if (error) {
+          console.error("❌ Supabase 抓取失敗:", error.message);
         } else {
-          console.log("⚠️ LocalStorage 是空的，所以沒有去抓資料庫。");
+          console.log("✅ 成功抓取到資料數量:", data?.length);
+          setTrips(data || []);
         }
       } catch (error) {
-        console.error("❌ 載入行程失敗，詳細錯誤:", error);
+        console.error("❌ 執行 loadAllTrips 發生錯誤:", error);
       } finally {
         setLoading(false);
       }
@@ -52,7 +51,6 @@ export default function HomePage() {
 
     loadAllTrips();
   }, []);
-
   return (
     <main className="min-h-screen bg-[#FFF7ED] p-8 md:p-16 text-slate-800">
       <div className="max-w-6xl mx-auto">
