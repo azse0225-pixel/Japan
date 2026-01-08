@@ -108,10 +108,29 @@ export async function updateTripDetails(tripId: string, data: any) {
 	return { success: true };
 }
 
+// 修改後的 updateTripDays
 export async function updateTripDays(tripId: string, newCount: number) {
 	const supabase = await createSupabaseServerClient();
-	const { error } = await supabase.from('trips').update({ days_count: newCount }).eq('id', tripId);
-	if (error) throw error;
+
+	// 💡 增加 select() 並查看回傳的 data
+	const { data, error, count } = await supabase
+		.from('trips')
+		.update({ days_count: newCount })
+		.eq('id', tripId)
+		.select(); // 👈 加上 select() 會讓它回傳更新後的資料
+
+	if (error) {
+		console.error("更新出錯:", error.message);
+		throw error;
+	}
+
+	// 💡 檢查有沒有資料被更新
+	if (!data || data.length === 0) {
+		console.warn("⚠️ 更新成功但沒有資料受影響，請檢查 ID 是否正確或 RLS 政策");
+		// 如果沒更新到，我們手動拋出錯誤讓前端回滾
+		throw new Error("No rows updated");
+	}
+
 	revalidatePath(`/trip/${tripId}`);
 }
 

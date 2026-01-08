@@ -281,8 +281,18 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
           startDate={tripData?.start_date}
           onSelectDay={setSelectedDay}
           onAddDay={async () => {
-            await updateTripDays(tripId, days.length + 1);
-            initLoad(false);
+            const nextCount = days.length + 1;
+            setDays(Array.from({ length: nextCount }, (_, i) => i + 1));
+            setTripData((prev: any) => ({ ...prev, days_count: nextCount }));
+            try {
+              await updateTripDays(tripId, nextCount);
+            } catch (error) {
+              // 失敗才滾回去
+              const prevCount = days.length;
+              setDays(Array.from({ length: prevCount }, (_, i) => i + 1));
+              setTripData((prev: any) => ({ ...prev, days_count: prevCount }));
+              alert("新增天數失敗");
+            }
           }}
           onDeleteClick={(day) => {
             setTargetDeleteDay(day);
