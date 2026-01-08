@@ -273,7 +273,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
         onOpenChecklist={() => setIsChecklistOpen(true)}
       />
 
-      <div className="max-w-7xl mx-auto px-4">
+      <div className="max-w-[1600px] mx-auto px-4">
         {/* ✨ 天數切換區：含日期小標籤 ✨ */}
         <DayTabs
           days={days}
@@ -343,13 +343,13 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                             <span>
                               {spot.transport_mode === "TRANSIT" ? "🚇" : "🚶"}
                             </span>
-                            <span>
+                            <span className="text-slate-800 font-bold">
                               {spot.transport_mode === "TRANSIT"
                                 ? "搭地鐵"
                                 : "走路"}
                             </span>
                             {durations[spot.id] && (
-                              <span className="ml-1 pl-1.5 border-l border-slate-100 text-slate-400 italic">
+                              <span className="ml-1 pl-1.5 border-l border-slate-100 text-slate-600 ">
                                 {durations[spot.id].time || durations[spot.id]}
                               </span>
                             )}
@@ -428,7 +428,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
           </div>
 
           {/* 右側：地圖 */}
-          <div className="lg:w-[380px]">
+          <div className="lg:w-[500px]">
             <div
               ref={mapRef}
               className="sticky top-24 h-[400px] lg:h-[600px] bg-white p-2 rounded-[40px] shadow-2xl border-4 border-white overflow-hidden scroll-mt-24"

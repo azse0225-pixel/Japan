@@ -7,7 +7,7 @@ import {
   deleteSpotAttachment,
 } from "@/lib/actions/trip-actions";
 import { CATEGORIES } from "./constants";
-
+import { cn } from "@/lib/utils"; // 1. 先匯入工具
 interface SpotItemProps {
   spot: any;
   members: any[];
@@ -138,7 +138,7 @@ export default function SpotItem({
               setShowCost(!showCost);
               setShowTickets(false);
             }}
-            className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black transition-colors ${
+            className={`w-8 h-8 rounded-xl flex items-center  md:text-[1rem] justify-center text-xs font-black transition-colors ${
               spot.actual_cost > 0
                 ? "bg-emerald-100 text-emerald-600"
                 : "bg-slate-50 text-slate-300"
@@ -152,7 +152,7 @@ export default function SpotItem({
               setShowTickets(!showTickets);
               setShowCost(false);
             }}
-            className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black relative transition-colors ${
+            className={`w-8 h-8 text-xs rounded-xl  md:text-[1rem]  flex items-center justify-center  font-black relative transition-colors ${
               spot.attachments?.length > 0
                 ? "bg-blue-100 text-blue-600"
                 : "bg-slate-50 text-slate-300"
@@ -166,15 +166,13 @@ export default function SpotItem({
             )}
           </button>
         </div>
-
-        {/* 備註：正體字，移除斜體 */}
         <input
           type="text"
           value={spot.note || ""}
           onChange={(e) => onNoteChange(spot.id, e.target.value)}
           onClick={(e) => e.stopPropagation()}
           placeholder="點擊輸入備註..."
-          className="flex-1 bg-transparent text-sm text-slate-400 outline-none border-b border-transparent hover:border-slate-100 transition-all"
+          className="flex-1 bg-transparent text-base text-slate-600 outline-none border-b border-transparent hover:border-slate-100 transition-all"
         />
 
         {/* 實支費用顯示 */}
