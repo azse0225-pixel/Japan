@@ -4,22 +4,26 @@ import { CATEGORIES } from "./constants";
 import { addDays, format } from "date-fns";
 import { zhTW } from "date-fns/locale";
 
-// ✨ 修正重點：在這裡加上 startDate
 interface ExportProps {
   day: number;
   title: string;
   spots: any[];
-  startDate?: string; // 👈 必須在這裡宣告，TypeScript 才會允許傳入
+  startDate?: string;
 }
 
 export const ExportTemplate = forwardRef<HTMLDivElement, ExportProps>(
   ({ day, title, spots, startDate }, ref) => {
-    const totalActual = spots.reduce(
-      (sum, s) => sum + (Number(s.actual_cost) || 0),
-      0
+    // ✨ 1. 修改計算邏輯：分別加總日幣與台幣
+    const totals = spots.reduce(
+      (acc, s) => {
+        const curr = s.currency || "JPY";
+        const cost = Number(s.actual_cost) || 0;
+        acc[curr] += cost;
+        return acc;
+      },
+      { JPY: 0, TWD: 0 }
     );
 
-    // ✨ 計算日期邏輯
     const displayDate = startDate
       ? format(addDays(new Date(startDate), day - 1), "yyyy.MM.dd (eee)", {
           locale: zhTW,
@@ -38,15 +42,15 @@ export const ExportTemplate = forwardRef<HTMLDivElement, ExportProps>(
           {/* Header 區塊 */}
           <div
             className="relative flex-shrink-0 flex flex-col justify-end overflow-hidden"
-            style={{ height: "100px" }}
+            style={{ height: "120px" }} // 稍微加高一點以容納雙幣別
           >
             <img
               src="/images/header.jpg"
               alt="Header Background"
-              className="absolute inset-0 w-full h-full object-cover z-0 brightness-[0.9999]"
+              className="absolute inset-0 w-full h-full object-cover z-0 brightness-[1]"
             />
             <div
-              className="relative z-20 text-white flex justify-between items-end p-5 pb-2"
+              className="relative z-20 text-white flex justify-between items-end p-5 pb-3"
               style={strongOutlineStyle}
             >
               <div>
@@ -58,13 +62,22 @@ export const ExportTemplate = forwardRef<HTMLDivElement, ExportProps>(
                   {title || "My Adventure"}
                 </h1>
               </div>
-              <div className="text-right">
-                <div className="text-[7px] font-bold text-white/80 uppercase mb-0.5">
-                  Expenses
+
+              {/* ✨ 2. 修改標頭顯示：顯示當日雙幣別總計 */}
+              <div className="text-right flex flex-col gap-0.5">
+                <div className="text-[7px] font-bold text-white/80 uppercase">
+                  Daily Expenses
                 </div>
-                <div className="text-base font-black font-mono leading-none">
-                  ¥{totalActual.toLocaleString()}
-                </div>
+                {totals.JPY > 0 && (
+                  <div className="text-sm font-black font-mono leading-none">
+                    ¥{totals.JPY.toLocaleString()}
+                  </div>
+                )}
+                {totals.TWD > 0 && (
+                  <div className="text-sm font-black font-mono leading-none text-blue-200">
+                    ${totals.TWD.toLocaleString()}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -99,9 +112,18 @@ export const ExportTemplate = forwardRef<HTMLDivElement, ExportProps>(
                       </div>
                     )}
                   </div>
+
+                  {/* ✨ 3. 修改清單顯示：根據幣別顯示對應符號 */}
                   {s.actual_cost > 0 && (
-                    <div className="text-emerald-600 font-bold text-xs pr-1">
-                      ¥{s.actual_cost.toLocaleString()}
+                    <div
+                      className={
+                        s.currency === "TWD"
+                          ? "text-blue-600 font-bold text-xs pr-1"
+                          : "text-emerald-600 font-bold text-xs pr-1"
+                      }
+                    >
+                      {s.currency === "TWD" ? "$" : "¥"}
+                      {s.actual_cost.toLocaleString()}
                     </div>
                   )}
                 </div>
