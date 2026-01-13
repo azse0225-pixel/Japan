@@ -1,4 +1,5 @@
 // components/trip/MemberModal.tsx
+import { cn } from "@/lib/utils";
 interface Props {
   isOpen: boolean;
   onClose: () => void;
@@ -80,20 +81,49 @@ export default function MemberModal({
           <h4 className="text-[9px] font-black text-slate-500 uppercase mb-4 text-center tracking-[4px]">
             Settlement
           </h4>
-          {settlement.map((m) => (
+          {settlement.map((member) => (
             <div
-              key={m.id}
-              className="flex justify-between items-center bg-white/5 p-3 rounded-2xl mb-2 border border-white/5"
+              key={member.id}
+              className="flex justify-between items-center p-3 border-b border-slate-800"
             >
-              <span className="font-bold text-xs">{m.name}</span>
-              <span
-                className={`font-mono font-bold text-sm ${
-                  m.balance >= 0 ? "text-emerald-400" : "text-rose-400"
-                }`}
-              >
-                {m.balance >= 0 ? "+" : ""}¥
-                {Math.round(m.balance).toLocaleString()}
-              </span>
+              <span className="font-bold text-slate-200">{member.name}</span>
+
+              <div className="flex flex-col items-end gap-1">
+                {/* 顯示日幣餘額 */}
+                {member.balances.JPY !== 0 && (
+                  <span
+                    className={cn(
+                      "text-xs font-black",
+                      member.balances.JPY > 0
+                        ? "text-emerald-500"
+                        : "text-rose-400"
+                    )}
+                  >
+                    {member.balances.JPY > 0 ? "+" : ""}¥
+                    {Math.round(member.balances.JPY).toLocaleString()}
+                  </span>
+                )}
+
+                {/* 顯示台幣餘額 */}
+                {member.balances.TWD !== 0 && (
+                  <span
+                    className={cn(
+                      "text-xs font-black",
+                      member.balances.TWD > 0
+                        ? "text-blue-500"
+                        : "text-rose-400"
+                    )}
+                  >
+                    {member.balances.TWD > 0 ? "+" : ""}$
+                    {Math.round(member.balances.TWD).toLocaleString()}
+                  </span>
+                )}
+
+                {/* 如果兩者皆為 0 */}
+                {member.balances.JPY === 0 && member.balances.TWD === 0 && (
+                  <span className="text-xs text-slate-300">已清帳</span>
+                )}
+              </div>
             </div>
           ))}
         </div>

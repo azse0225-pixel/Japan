@@ -145,16 +145,22 @@ export async function deleteTrip(tripId: string) {
 // 2. 景點編輯與排序 (Spots)
 // ==========================================
 
-export async function getSpots(tripId: string, day: number) {
+export async function getSpots(tripId: string, day?: number) {
 	const supabase = await createSupabaseServerClient();
-	const { data, error } = await supabase
+	let query = supabase
 		.from("spots")
 		.select("*")
-		.eq("trip_id", tripId)
-		.eq("day", Number(day))
+		.eq("trip_id", tripId);
+	if (day !== undefined && day !== null) {
+		query = query.eq("day", Number(day));
+	}
+	const { data, error } = await query
 		.order("time", { ascending: true })
 		.order("order_index", { ascending: true });
-	if (error) return [];
+	if (error) {
+		console.error("抓取地點失敗:", error.message);
+		return [];
+	}
 	return data || [];
 }
 
@@ -235,17 +241,40 @@ export async function updateSpotTransportMode(spotId: string, mode: 'WALKING' | 
 	await supabase.from('spots').update({ transport_mode: mode }).eq('id', spotId);
 }
 
-export async function updateSpotCost(spotId: string, estimated: number, actual: number) {
+export async function updateSpotCost(
+	spotId: string,
+	estimated: number,
+	actual: number,
+	currency: string // 1. 這裡接到了參數
+) {
 	const supabase = await createSupabaseServerClient();
-	await supabase.from("spots").update({ estimated_cost: estimated, actual_cost: actual }).eq("id", spotId);
+
+	const { error } = await supabase
+		.from("spots")
+		.update({
+			estimated_cost: estimated,
+			actual_cost: actual,
+			currency: currency // ✨ 2. 這裡一定要加上去，才會存入資料庫！
+		})
+		.eq("id", spotId);
+
+	if (error) {
+		console.error("更新金額與幣別失敗:", error.message);
+		throw error;
+	}
 }
 
-export async function updateSpotSplit(spotId: string, payerId: string | null, involvedMembers: any) {
+export async function updateSpotSplit(id: string, payerId: string, involvedMembers: string[], breakdown: any) {
 	const supabase = await createSupabaseServerClient();
-	const { error } = await supabase.from("spots").update({
-		payer_id: payerId === "" ? null : payerId,
-		involved_members: involvedMembers
-	}).eq("id", spotId);
+	const { error } = await supabase
+		.from('spots')
+		.update({
+			payer_id: payerId,
+			involved_members: involvedMembers,
+			cost_breakdown: breakdown // ✨ 存入 JSON 細項
+		})
+		.eq('id', id);
+
 	if (error) throw error;
 }
 

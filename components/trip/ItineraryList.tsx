@@ -1,3 +1,4 @@
+// components/trip/ItineraryList.tsx
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
@@ -39,6 +40,7 @@ const libraries: ("places" | "geometry")[] = ["places", "geometry"];
 export default function ItineraryList({ tripId }: { tripId: string }) {
   // --- 狀態管理 ---
   const [spots, setSpots] = useState<any[]>([]);
+  const [allSpots, setAllSpots] = useState<any[]>([]); // ✨ 新增這行，存全行程資料
   const [members, setMembers] = useState<any[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -78,14 +80,21 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
   });
 
   // --- 資料初始化與實時同步 ---
-  const initLoad = async (resetFocus = true) => {
+  const initLoad = async (resetFocus = true, showLoadingAnimation = false) => {
     if (resetFocus) setFocusedSpot(null);
-    setIsLoading(true);
+
+    // 🚀 只有在初次載入或手動重新整理時才顯示轉圈圈
+    if (showLoadingAnimation) setIsLoading(true);
+
     try {
       const localMemberId = localStorage.getItem(`me_in_${tripId}`);
-      const [tData, mData] = await Promise.all([
+
+      // ✨ 修正後的 Promise.all：一次抓取 4 個資料
+      const [tData, mData, sData, allSData] = await Promise.all([
         getTripData(tripId),
         getTripMembers(tripId, localMemberId || undefined),
+        getSpots(tripId, selectedDay), // 抓當天
+        getSpots(tripId), // 抓全部 (不傳天數，需後端支援)
       ]);
 
       if (tData) {
@@ -94,21 +103,26 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
       }
       setMembers(mData || []);
 
-      const sData = await getSpots(tripId, selectedDay);
-      setSpots(
-        (sData || []).sort((a: any, b: any) =>
-          (a.time || "99:99").localeCompare(b.time || "99:99")
-        )
+      // 更新當天行程點 (排序過後)
+      const sortedDaily = (sData || []).sort((a: any, b: any) =>
+        (a.time || "99:99").localeCompare(b.time || "99:99")
       );
+      setSpots(sortedDaily);
+
+      // ✨ 更新全行程點 (用於分帳)
+      setAllSpots(allSData || []);
     } catch (e) {
-      console.error(e);
+      console.error("初始化載入失敗:", e);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    initLoad();
+    // 1. 當切換天數 (selectedDay) 或初次進入頁面時
+    // 我們執行 initLoad(重設焦點, 顯示載入動畫)
+    initLoad(true, true);
+
     const channel = supabase
       .channel(`trip-${tripId}`)
       .on(
@@ -119,7 +133,9 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
           table: "spots",
           filter: `trip_id=eq.${tripId}`,
         },
-        () => initLoad(false)
+        // 2. 當 Realtime 偵測到資料變動時
+        // 執行 initLoad(不重設焦點, 不顯示動畫) -> 達成無感同步 ✨
+        () => initLoad(false, false)
       )
       .on(
         "postgres_changes",
@@ -129,9 +145,11 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
           table: "trip_members",
           filter: `trip_id=eq.${tripId}`,
         },
-        () => initLoad(false)
+        // 3. 成員變動時同樣保持靜默同步
+        () => initLoad(false, false)
       )
       .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
     };
@@ -237,21 +255,37 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
   };
 
   // --- 結算邏輯 ---
+  // 🔍 找到 settlement 區塊，修改讀取的陣列
   const settlement = useMemo(() => {
-    const b: any = {};
-    members.forEach((m) => (b[m.id] = 0));
-    spots.forEach((s) => {
-      const c = Number(s.actual_cost || 0);
+    const balances: any = {};
+    members.forEach((m) => (balances[m.id] = { JPY: 0, TWD: 0 }));
+
+    // 🚀 關鍵：這裡必須改成 allSpots，分帳才會累計每一天！
+    allSpots.forEach((s) => {
+      const totalCost = Number(s.actual_cost || 0);
       const inv = s.involved_members || [];
-      if (c > 0 && inv.length > 0) {
+      const curr = s.currency || "JPY";
+      const breakdown = s.cost_breakdown || {};
+
+      if (totalCost > 0 && inv.length > 0) {
         inv.forEach((mId: string) => {
-          if (b[mId] !== undefined) b[mId] -= c / inv.length;
+          if (balances[mId]) {
+            const memberCost =
+              breakdown[mId] !== undefined
+                ? Number(breakdown[mId])
+                : totalCost / inv.length;
+            balances[mId][curr] -= memberCost;
+          }
         });
-        if (s.payer_id && b[s.payer_id] !== undefined) b[s.payer_id] += c;
+
+        if (s.payer_id && balances[s.payer_id]) {
+          balances[s.payer_id][curr] += totalCost;
+        }
       }
     });
-    return members.map((m) => ({ ...m, balance: b[m.id] || 0 }));
-  }, [spots, members]);
+
+    return members.map((m) => ({ ...m, balances: balances[m.id] }));
+  }, [allSpots, members]); // ✨ 相依項也要改成 allSpots
 
   return (
     <div className="w-full pb-20 bg-slate-50/50 min-h-screen">
@@ -371,32 +405,79 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                         spot={spot}
                         members={members}
                         onSelect={() => {
-                          setFocusedSpot(spot); // 原本的聚焦邏輯
-                          scrollToMap(); // ✨ 新增的捲動邏輯
+                          setFocusedSpot(spot);
+                          scrollToMap();
                         }}
                         onDelete={(id: string) =>
-                          deleteSpot(tripId, id).then(() => initLoad(false))
+                          // 刪除通常需要重新載入，因為順序會變，但我們可以先過濾掉
+                          deleteSpot(tripId, id).then(() => {
+                            setSpots((prev) => prev.filter((s) => s.id !== id));
+                          })
                         }
-                        onNoteChange={handleNoteChange}
-                        onCategoryChange={(id, cat) =>
-                          updateSpotCategory(id, cat).then(() =>
-                            initLoad(false)
-                          )
-                        }
-                        onTimeChange={(id, t) =>
-                          updateSpotTime(id, t).then(() => initLoad(false))
-                        }
-                        onCostChange={(id, est, act) =>
-                          updateSpotCost(id, est, act).then(() =>
-                            initLoad(false)
-                          )
-                        }
-                        onSplitChange={(id, p, inv) =>
-                          updateSpotSplit(id, p, inv).then(() =>
-                            initLoad(false)
-                          )
-                        }
-                        onAttachmentChange={() => initLoad(false)}
+                        onNoteChange={handleNoteChange} // 這個妳已經寫好本地更新了，很棒！
+                        onCategoryChange={(id, cat) => {
+                          // 1. 先改本地狀態
+                          setSpots((prev) =>
+                            prev.map((s) =>
+                              s.id === id ? { ...s, category: cat } : s
+                            )
+                          );
+                          // 2. 悄悄存檔，不跑 .then(() => initLoad(false))
+                          updateSpotCategory(id, cat);
+                        }}
+                        onTimeChange={(id, t) => {
+                          // 1. 先改本地狀態並重新排序（時間變了排序會動）
+                          setSpots((prev) => {
+                            const newSpots = prev.map((s) =>
+                              s.id === id ? { ...s, time: t } : s
+                            );
+                            return [...newSpots].sort((a, b) =>
+                              (a.time || "99:99").localeCompare(
+                                b.time || "99:99"
+                              )
+                            );
+                          });
+                          // 2. 悄悄存檔
+                          updateSpotTime(id, t);
+                        }}
+                        onCostChange={(id, est, act, curr) => {
+                          // 🚀 1. 樂觀更新：直接改掉畫面的數字
+                          setSpots((prev) =>
+                            prev.map((s) =>
+                              s.id === id
+                                ? {
+                                    ...s,
+                                    estimated_cost: est,
+                                    actual_cost: act,
+                                    currency: curr,
+                                  }
+                                : s
+                            )
+                          );
+
+                          // 🚀 2. 執行存檔：去掉 .then(() => initLoad(false))
+                          updateSpotCost(id, est, act, curr);
+                        }}
+                        onSplitChange={(id, p, inv, breakdown) => {
+                          setSpots((prev) =>
+                            prev.map((s) =>
+                              s.id === id
+                                ? {
+                                    ...s,
+                                    payer_id: p,
+                                    involved_members: inv,
+                                    cost_breakdown: breakdown,
+                                  }
+                                : s
+                            )
+                          );
+                          updateSpotSplit(id, p, inv, breakdown);
+                        }}
+                        onAttachmentChange={() => {
+                          // 附件比較特殊（涉及檔案網址），建議還是 reload 一下，
+                          // 但可以把 initLoad 裡面的 setIsLoading(true) 關掉，就不會閃
+                          initLoad(false);
+                        }}
                       />
                     </div>
                   ))

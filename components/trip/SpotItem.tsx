@@ -1,7 +1,7 @@
 // components/trip/SpotItem.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   uploadSpotAttachment,
   deleteSpotAttachment,
@@ -16,8 +16,18 @@ interface SpotItemProps {
   onCategoryChange: (id: string, cat: string) => void;
   onTimeChange: (id: string, time: string) => void;
   onSelect: () => void;
-  onCostChange: (id: string, est: number, act: number) => void;
-  onSplitChange: (id: string, payerId: string, invMembers: string[]) => void;
+  onCostChange: (
+    id: string,
+    est: number,
+    act: number,
+    currency: string
+  ) => void;
+  onSplitChange: (
+    id: string,
+    payerId: string,
+    invMembers: string[],
+    breakdown: any
+  ) => void;
   onAttachmentChange: () => void;
 }
 
@@ -37,7 +47,14 @@ export default function SpotItem({
   const [showCost, setShowCost] = useState(false);
   const [showTickets, setShowTickets] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-
+  // --- 新增本地暫存狀態 ---
+  const [localNote, setLocalNote] = useState(spot.note || "");
+  const [localEst, setLocalEst] = useState(spot.estimated_cost || 0);
+  const [localAct, setLocalAct] = useState(spot.actual_cost || 0);
+  const [localCurrency, setLocalCurrency] = useState(spot.currency || "JPY");
+  const [localBreakdown, setLocalBreakdown] = useState(
+    spot.cost_breakdown || {}
+  );
   const currentCat =
     CATEGORIES.find((c) => c.id === spot.category) || CATEGORIES[0];
   const payerName =
@@ -57,7 +74,49 @@ export default function SpotItem({
       setIsUploading(false);
     }
   };
+  // 使用 useRef 來存儲計時器，避免重新渲染時遺失
+  const debounceTimer = useRef<{ [key: string]: NodeJS.Timeout }>({});
 
+  // 當外部資料 (spot) 真的變動時（例如重新載入頁面），同步更新本地狀態
+  useEffect(() => {
+    setLocalNote(spot.note || "");
+    setLocalEst(spot.estimated_cost || 0);
+    setLocalAct(spot.actual_cost || 0);
+    setLocalCurrency(spot.currency || "JPY");
+    setLocalBreakdown(spot.cost_breakdown || {}); // ✨ 同步細項
+  }, [spot.note, spot.estimated_cost, spot.actual_cost, spot.currency]);
+
+  // 通用的防抖處理函式
+  const debounceSave = (key: string, callback: () => void, delay = 800) => {
+    if (debounceTimer.current[key]) clearTimeout(debounceTimer.current[key]);
+    debounceTimer.current[key] = setTimeout(callback, delay);
+  };
+  // 3. 處理細項變動
+  // SpotItem.tsx 內部
+
+  const handleBreakdownChange = (memberId: string, amount: number) => {
+    const newBreakdown = { ...localBreakdown, [memberId]: amount };
+    setLocalBreakdown(newBreakdown);
+    const totalAct = Object.values(newBreakdown).reduce(
+      (sum: number, val: any) => sum + (Number(val) || 0),
+      0
+    );
+    setLocalAct(totalAct);
+    debounceSave(
+      "split_update",
+      () => {
+        // 同時更新分帳細項與實支總額
+        onSplitChange(
+          spot.id,
+          spot.payer_id,
+          spot.involved_members,
+          newBreakdown
+        );
+        onCostChange(spot.id, localEst, totalAct, localCurrency);
+      },
+      1000
+    ); // 細項輸入通常較連續，建議給 1 秒 (1000ms)
+  };
   return (
     <div
       onClick={onSelect}
@@ -168,17 +227,22 @@ export default function SpotItem({
         </div>
         <input
           type="text"
-          value={spot.note || ""}
-          onChange={(e) => onNoteChange(spot.id, e.target.value)}
+          value={localNote} // 💡 綁定本地狀態
+          onChange={(e) => {
+            const val = e.target.value;
+            setLocalNote(val); // 立即更新畫面字體，不卡頓
+            debounceSave("note", () => onNoteChange(spot.id, val)); // 停下 0.8 秒後才存檔
+          }}
           onClick={(e) => e.stopPropagation()}
           placeholder="點擊輸入備註..."
           className="flex-1 bg-transparent text-base text-slate-600 outline-none border-b border-transparent hover:border-slate-100 transition-all"
         />
 
-        {/* 實支費用顯示 */}
+        {/* 實支費用顯示 (修改符號部分) */}
         {spot.actual_cost > 0 && (
           <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100">
-            ¥{spot.actual_cost.toLocaleString()} ({payerName})
+            {spot.currency === "TWD" ? "$" : "¥"}
+            {spot.actual_cost.toLocaleString()} ({payerName})
           </span>
         )}
       </div>
@@ -189,35 +253,66 @@ export default function SpotItem({
           className="mt-4 grid grid-cols-2 gap-3 animate-in slide-in-from-top-2 duration-200"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="bg-slate-50 rounded-2xl p-3 border border-slate-100">
-            <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1">
-              預算 ¥
-            </label>
-            <input
-              type="number"
-              value={spot.estimated_cost || 0}
-              onChange={(e) =>
-                onCostChange(spot.id, Number(e.target.value), spot.actual_cost)
-              }
-              className="bg-transparent w-full text-lg font-black text-slate-700 outline-none"
-            />
-          </div>
-          <div className="bg-emerald-50 rounded-2xl p-3 border border-emerald-100">
-            <label className="text-[9px] text-emerald-600/70 font-bold uppercase block mb-1">
-              實支 ¥
-            </label>
-            <input
-              type="number"
-              value={spot.actual_cost || 0}
-              onChange={(e) =>
-                onCostChange(
-                  spot.id,
-                  spot.estimated_cost,
-                  Number(e.target.value)
-                )
-              }
-              className="bg-transparent w-full text-lg font-black text-emerald-700 outline-none"
-            />
+          <div className="flex flex-wrap items-end gap-3">
+            {/* 預算區塊 */}
+            <div className="flex-1 min-w-[140px] bg-slate-50 rounded-2xl p-3 border border-slate-100 relative">
+              {/* ✨ 微型幣別切換器：放在左上角 ✨ */}
+              <div className="absolute -top-2.5 right-3 flex bg-white border border-slate-200 rounded-lg p-0.5 shadow-sm z-10">
+                {["JPY", "TWD"].map((curr) => (
+                  <button
+                    key={curr}
+                    onClick={() => {
+                      setLocalCurrency(curr);
+                      // 立即更新本地 spots 狀態，不觸發全頁載入
+                      onCostChange(spot.id, localEst, localAct, curr);
+                    }}
+                    className={cn(
+                      "px-2 py-0.5 rounded-md text-[9px] font-black transition-all",
+                      localCurrency === curr
+                        ? "bg-slate-800 text-white"
+                        : "text-slate-400 hover:text-slate-600"
+                    )}
+                  >
+                    {curr === "JPY" ? "日幣 ¥" : "台幣 $"}
+                  </button>
+                ))}
+              </div>
+
+              <label className="text-[9px] text-slate-400 font-bold uppercase block mb-1">
+                預算 {localCurrency === "JPY" ? "¥" : "$"}
+              </label>
+              <input
+                type="number"
+                value={localEst}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setLocalEst(val);
+                  debounceSave("cost", () =>
+                    onCostChange(spot.id, val, localAct, localCurrency)
+                  );
+                }}
+                className="bg-transparent w-full text-lg font-black text-slate-700 outline-none"
+              />
+            </div>
+
+            {/* 實支區塊 */}
+            <div className="flex-1 min-w-[140px] bg-emerald-50 rounded-2xl p-3 border border-emerald-100">
+              <label className="text-[9px] text-emerald-600/70 font-bold uppercase block mb-1">
+                實支 {localCurrency === "JPY" ? "¥" : "$"}
+              </label>
+              <input
+                type="number"
+                value={localAct}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setLocalAct(val);
+                  debounceSave("cost", () =>
+                    onCostChange(spot.id, localEst, val, localCurrency)
+                  );
+                }}
+                className="bg-transparent w-full text-lg font-black text-emerald-700 outline-none"
+              />
+            </div>
           </div>
 
           <div className="col-span-2 bg-indigo-50 rounded-[24px] p-4 border border-indigo-100">
@@ -227,7 +322,13 @@ export default function SpotItem({
             <select
               value={spot.payer_id || ""}
               onChange={(e) =>
-                onSplitChange(spot.id, e.target.value, spot.involved_members)
+                // ✨ 這裡要補上第四個引數 localBreakdown
+                onSplitChange(
+                  spot.id,
+                  e.target.value,
+                  spot.involved_members,
+                  localBreakdown // 💡 讓墊錢者改變時，個人細項金額也能維持住
+                )
               }
               className="text-xs bg-white border border-indigo-200 rounded-xl px-3 py-2 w-full font-bold text-indigo-700 outline-none mb-3 shadow-sm"
             >
@@ -244,30 +345,57 @@ export default function SpotItem({
             </label>
             <div className="flex flex-wrap gap-2">
               {members.map((m: any) => {
-                const involved = Array.isArray(spot.involved_members)
-                  ? spot.involved_members
-                  : [];
-                const isChecked = involved.includes(m.id);
+                const isChecked = spot.involved_members?.includes(m.id);
                 return (
-                  <button
-                    key={m.id}
-                    onClick={() =>
-                      onSplitChange(
-                        spot.id,
-                        spot.payer_id,
+                  <div key={m.id} className="flex flex-col gap-1">
+                    <button
+                      onClick={() => {
+                        const newInvolved = isChecked
+                          ? spot.involved_members.filter(
+                              (id: any) => id !== m.id
+                            )
+                          : [...(spot.involved_members || []), m.id];
+                        onSplitChange(
+                          spot.id,
+                          spot.payer_id,
+                          newInvolved,
+                          localBreakdown
+                        );
+                      }}
+                      className={cn(
+                        "px-3 py-1.5 rounded-xl text-[10px] font-bold border transition-all",
                         isChecked
-                          ? involved.filter((id: any) => id !== m.id)
-                          : [...involved, m.id]
-                      )
-                    }
-                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold border transition-all ${
-                      isChecked
-                        ? "bg-indigo-500 text-white border-indigo-500 shadow-md"
-                        : "bg-white text-indigo-400 border-indigo-100"
-                    }`}
-                  >
-                    {m.name}
-                  </button>
+                          ? "bg-indigo-500 text-white border-indigo-500 shadow-md"
+                          : "bg-white text-indigo-400 border-indigo-100"
+                      )}
+                    >
+                      {m.name}
+                    </button>
+
+                    {/* ✨ 新增：如果是選中狀態，顯示金額輸入框 ✨ */}
+                    {isChecked && (
+                      <div className="relative group animate-in fade-in zoom-in duration-200">
+                        {/* 幣別符號 - 縮小並放在輸入框內 */}
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[9px] text-indigo-300 font-bold pointer-events-none">
+                          {localCurrency === "JPY" ? "¥" : "$"}
+                        </span>
+                        <input
+                          type="number"
+                          value={localBreakdown[m.id] || ""}
+                          placeholder="0"
+                          onChange={(e) => {
+                            const val =
+                              e.target.value === ""
+                                ? 0
+                                : Number(e.target.value);
+                            handleBreakdownChange(m.id, val);
+                          }}
+                          onFocus={(e) => e.target.select()}
+                          className="w-20 pl-5 pr-2 py-1 bg-white text-[11px] font-black text-indigo-600 text-center rounded-lg border border-indigo-100 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-100 outline-none transition-all shadow-sm"
+                        />
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>
