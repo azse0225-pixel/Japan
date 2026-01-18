@@ -342,8 +342,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                     className="px-2.5 py-1.5 sm:px-4 sm:py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] sm:text-xs font-black hover:bg-emerald-100 transition-colors flex items-center gap-1 shrink-0"
                   >
                     <span>👥</span>
-                    <span className="hidden xs:inline">成員</span>{" "}
-                    {/* 🚀 在極小螢幕隱藏文字只留圖示 */}
+                    <span>成員</span> {/* 🚀 在極小螢幕隱藏文字只留圖示 */}
                   </button>
                   {/* 📥 下載按鈕 */}
                   <button
@@ -352,7 +351,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                     className="px-2.5 py-1.5 sm:px-4 sm:py-2 bg-slate-100 text-slate-600 rounded-xl text-[10px] sm:text-xs font-black hover:bg-slate-200 transition-colors flex items-center gap-1 shrink-0"
                   >
                     <span>📥</span>
-                    <span className="hidden xs:inline">下載</span>
+                    <span>下載</span>
                   </button>
                   {/* 📊 分帳按鈕 */}
                   <button
@@ -360,7 +359,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                     className="px-2.5 py-1.5 sm:px-4 sm:py-2 bg-indigo-50 text-indigo-600 rounded-xl text-[10px] sm:text-xs font-black hover:bg-indigo-100 transition-colors flex items-center gap-1 shrink-0"
                   >
                     <span>📊</span>
-                    <span className="hidden xs:inline">分帳</span>
+                    <span>分帳</span>
                   </button>
                 </div>
               </div>
