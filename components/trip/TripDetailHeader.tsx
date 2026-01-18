@@ -6,6 +6,7 @@ import Link from "next/link";
 interface HeaderProps {
   title: string;
   onOpenChecklist: () => void;
+  onOpenPocketList: () => void; // 🚀 新增這行
   onBack: () => void; // ✨ 補上這個屬性，解決報錯
   startDate?: string; // 👈 補上這個
   selectedDay: number;
@@ -14,6 +15,7 @@ interface HeaderProps {
 export default function TripDetailHeader({
   title,
   onOpenChecklist,
+  onOpenPocketList,
 }: HeaderProps) {
   return (
     /* 1. 調整高度：手機版減低到 180px，桌機版增加到 300px */
@@ -40,14 +42,24 @@ export default function TripDetailHeader({
             {title || "My Adventure"}
             <span className="text-orange-400">.</span>
           </h1>
-
-          {/* 3. 按鈕：移除 absolute，改用 relative 並取消手機版的固定右邊 */}
-          <button
-            onClick={onOpenChecklist}
-            className="relative md:static w-fit bg-white/20 backdrop-blur-md border border-white/50 text-white px-5 py-2 md:px-6 md:py-3 rounded-full font-black text-xs md:text-sm shadow-xl hover:bg-white/30 transition-all active:scale-95 shrink-0"
-          >
-            🎒 行前確認
-          </button>
+          <div className="flex gap-2 shrink-0">
+            {" "}
+            {/* 🚀 變成組合按鈕 */}
+            {/* 備忘錄按鈕 */}
+            <button
+              onClick={onOpenPocketList}
+              className="bg-white/20 backdrop-blur-md border border-white/50 text-white px-4 py-2 md:px-5 md:py-3 rounded-full font-black text-xs md:text-sm shadow-xl hover:bg-amber-500/40 transition-all active:scale-95 flex items-center gap-2"
+            >
+              <span>💡</span> 暫定行程
+            </button>
+            {/* 行前確認按鈕 */}
+            <button
+              onClick={onOpenChecklist}
+              className="bg-white/20 backdrop-blur-md border border-white/50 text-white px-4 py-2 md:px-5 md:py-3 rounded-full font-black text-xs md:text-sm shadow-xl hover:bg-white/30 transition-all active:scale-95 flex items-center gap-2"
+            >
+              <span>🎒</span> 行前確認
+            </button>
+          </div>
         </div>
       </div>
     </div>

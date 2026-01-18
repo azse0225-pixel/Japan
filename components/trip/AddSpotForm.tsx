@@ -1,5 +1,6 @@
 // components/trip/AddSpotForm.tsx
 "use client";
+import { cn } from "@/lib/utils"; // 🚀 引入 cn 工具
 import { CATEGORIES } from "./constants";
 
 interface AddSpotFormProps {
@@ -31,41 +32,51 @@ export default function AddSpotForm({
 }: AddSpotFormProps) {
   return (
     <div className="mt-8 p-5 bg-slate-50 rounded-[32px] relative border border-slate-100">
+      {/* 1. 類別選擇 */}
       <div className="flex flex-wrap gap-2 mb-4">
         {CATEGORIES.map((c) => (
           <button
             key={c.id}
             onClick={() => setSelectedCategory(c.id)}
-            className={`flex-1 min-w-[calc(33.33%-8px)] sm:min-w-[100px] px-4 py-2 rounded-xl text-xs font-black transition-all ${
+            className={cn(
+              "flex-1 min-w-[calc(33.33%-8px)] sm:min-w-[100px] px-4 py-2 rounded-xl text-xs font-black transition-all",
               selectedCategory === c.id
                 ? "bg-orange-500 text-white shadow-md"
-                : "bg-white text-slate-400 border border-slate-100"
-            }`}
+                : "bg-white text-slate-400 border border-slate-100 hover:bg-orange-50",
+            )}
           >
             {c.icon} {c.label}
           </button>
         ))}
       </div>
+
+      {/* 2. 輸入區域 */}
       <div className="flex flex-col sm:flex-row gap-2 relative">
         <input
           type="time"
           value={newSpotTime}
           onChange={(e) => setNewSpotTime(e.target.value)}
-          className="h-[56px] px-4 rounded-2xl bg-white border-none outline-none font-black shadow-sm text-slate-700"
+          className="h-[56px] px-4 rounded-2xl bg-white border-none outline-none font-black shadow-sm text-slate-700 shrink-0"
         />
+
         <div className="flex-1 relative">
           <input
             type="text"
             value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
+            onChange={(e) => setInputValue(e.target.value)} // 🚀 關鍵：不再這裡清除座標
             onKeyDown={(e) => e.key === "Enter" && onAddSpot()}
-            placeholder="搜尋想去的景點..."
-            className="w-full h-[56px] px-5 rounded-2xl bg-white outline-none font-bold shadow-sm text-slate-800"
+            placeholder="搜尋地點或自訂名稱..."
+            className={cn(
+              "w-full h-[56px] px-5 rounded-2xl bg-white outline-none font-bold shadow-sm transition-all duration-300 border-2",
+              pendingLocation
+                ? "border-emerald-400 ring-4 ring-emerald-50 text-slate-800"
+                : "border-transparent focus:border-orange-400 text-slate-800",
+            )}
           />
 
-          {/* ✨ Google 推薦地點選單 */}
-          {suggestions.length > 0 && (
-            <div className="absolute left-0 right-0 top-[60px] bg-white border border-slate-100 rounded-2xl shadow-2xl z-[100] overflow-hidden">
+          {/* ✨ Google 推薦地點選單 (僅在未鎖定座標時顯示) */}
+          {suggestions.length > 0 && !pendingLocation && (
+            <div className="absolute left-0 right-0 top-[60px] bg-white border border-slate-100 rounded-2xl shadow-2xl z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2">
               {suggestions.map((s) => (
                 <button
                   key={s.place_id}
@@ -78,28 +89,37 @@ export default function AddSpotForm({
               ))}
             </div>
           )}
-
-          {/* ✨ 浮動座標標籤 */}
-          {pendingLocation && (
-            <div className="absolute -bottom-6 left-0 flex items-center gap-1.5 px-2 py-0.5 bg-orange-600 text-white rounded-md text-[10px] font-black shadow-lg animate-bounce">
-              📍 座標鎖定: {pendingLocation.lat.toFixed(4)},{" "}
-              {pendingLocation.lng.toFixed(4)}
-              <button
-                onClick={() => setPendingLocation(null)}
-                className="ml-1 hover:text-orange-200"
-              >
-                ✕
-              </button>
-            </div>
-          )}
         </div>
+
         <button
           onClick={onAddSpot}
-          className="h-[56px] bg-orange-500 text-white px-8 rounded-2xl font-black shadow-lg active:scale-95 transition-all"
+          className="h-[56px] bg-orange-500 text-white px-8 rounded-2xl font-black shadow-lg shadow-orange-200 active:scale-95 transition-all shrink-0"
         >
           加入
         </button>
       </div>
+
+      {/* 🚀 3. 座標鎖定提示列 (取代原本的浮動標籤) */}
+      {pendingLocation && (
+        <div className="mt-3 px-4 py-2 bg-emerald-50 rounded-xl flex items-center justify-between border border-emerald-100 animate-in zoom-in-95">
+          <div className="flex items-center gap-2">
+            <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <p className="text-[10px] font-black text-emerald-600 uppercase tracking-wider">
+              座標已鎖定 ({pendingLocation.lat.toFixed(4)},{" "}
+              {pendingLocation.lng.toFixed(4)})，可隨意修改名稱
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setPendingLocation(null);
+              setInputValue(""); // 清空以便重新搜尋
+            }}
+            className="text-[10px] font-bold text-emerald-500 hover:text-rose-500 underline decoration-2 underline-offset-2"
+          >
+            更換地點
+          </button>
+        </div>
+      )}
     </div>
   );
 }

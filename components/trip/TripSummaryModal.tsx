@@ -493,7 +493,7 @@ export function TripSummaryModal({
                           {exp.description}
                         </h4>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 ml-auto">
                         <input
                           type="checkbox"
                           checked={exp.is_settled}
@@ -509,13 +509,13 @@ export function TripSummaryModal({
                         <span className="text-[10px] font-bold text-slate-400">
                           已結清
                         </span>
+                        <button
+                          onClick={() => setDeleteTargetId(exp.id)}
+                          className="text-slate-300 hover:text-rose-500 p-1 transition-colors"
+                        >
+                          🗑️
+                        </button>
                       </div>
-                      <button
-                        onClick={() => setDeleteTargetId(exp.id)}
-                        className="text-slate-300 p-1 active:text-rose-500 transition-colors"
-                      >
-                        🗑️
-                      </button>
                     </div>
                     <div className="flex justify-between items-center mt-2.5 pt-2.5 border-t border-slate-200/50">
                       <span className="text-[10px] font-bold text-slate-400">

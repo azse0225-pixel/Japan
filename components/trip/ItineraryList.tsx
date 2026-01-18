@@ -38,6 +38,7 @@ import { ExpenseModal } from "./ExpenseModal"; // ✨ 匯入組件
 import { TripSummaryModal } from "./TripSummaryModal";
 const libraries: ("places" | "geometry")[] = ["places", "geometry"];
 import { MemberManagementModal } from "./MemberManagementModal";
+import UnscheduledSpotsModal from "./UnscheduledSpotsModal"; // 🚀 1. 新增這一行
 export default function ItineraryList({ tripId }: { tripId: string }) {
   // --- 狀態管理 ---
   const [spots, setSpots] = useState<any[]>([]);
@@ -47,6 +48,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
   const [allTripExpenses, setAllTripExpenses] = useState<any[]>([]);
+  const [isPocketListOpen, setIsPocketListOpen] = useState(false); // 🚀 2. 新增控制開關
   const [pendingLocation, setPendingLocation] = useState<{
     lat: number;
     lng: number;
@@ -146,10 +148,11 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
 
   // --- 地點建議邏輯 ---
   useEffect(() => {
-    if (!isLoaded || !inputValue || inputValue.length < 2) {
+    if (!isLoaded || !inputValue || inputValue.length < 2 || pendingLocation) {
       setSuggestions([]);
       return;
     }
+
     const autocompleteService = new google.maps.places.AutocompleteService();
     const timeoutId = setTimeout(() => {
       autocompleteService.getPlacePredictions(
@@ -161,8 +164,10 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
         (predictions) => setSuggestions(predictions || []),
       );
     }, 300);
+
     return () => clearTimeout(timeoutId);
-  }, [inputValue, isLoaded, tripData?.country_code]);
+    // 🚀 記得把 pendingLocation 加入依賴陣列，這樣它的狀態改變時才會重新觸發判斷
+  }, [inputValue, isLoaded, tripData?.country_code, pendingLocation]);
 
   // --- 下載圖片邏輯 ---
   const handleDownload = async () => {
@@ -301,6 +306,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
         selectedDay={selectedDay}
         onBack={() => window.history.back()}
         onOpenChecklist={() => setIsChecklistOpen(true)}
+        onOpenPocketList={() => setIsPocketListOpen(true)} // 🚀 這裡就是連動點！
       />
 
       <div className="max-w-[1600px] mx-auto px-4">
@@ -534,12 +540,6 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
         }}
       />
 
-      <ChecklistModal
-        tripId={tripId}
-        isOpen={isChecklistOpen}
-        onClose={() => setIsChecklistOpen(false)}
-        members={members} // 🚀 記得傳這個！
-      />
       {/* ✨ 這裡是新加入的費用管理彈窗 ✨ */}
       {expenseModalSpot && (
         <ExpenseModal
@@ -575,6 +575,20 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
         tripId={tripId}
         members={members}
         onRefresh={() => initLoad(false, false)} // 這裡用你原本寫好的 initLoad
+      />
+      <ChecklistModal
+        tripId={tripId}
+        isOpen={isChecklistOpen}
+        onClose={() => setIsChecklistOpen(false)}
+        members={members} // 🚀 記得傳這個！
+      />
+      {/*  景點備忘錄彈窗 */}
+      <UnscheduledSpotsModal
+        isOpen={isPocketListOpen}
+        onClose={() => setIsPocketListOpen(false)}
+        tripId={tripId}
+        daysCount={days.length}
+        onRefresh={() => initLoad(false, false)} // 當移動景點後，自動重新整理主畫面
       />
     </div>
   );

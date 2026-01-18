@@ -544,3 +544,45 @@ export async function deleteExpense(expenseId: string, tripId: string) {
 	}
 	revalidatePath(`/trip/${tripId}`);
 }
+
+// lib/actions/trip-actions.ts
+
+// 1. 取得暫未排定的景點 (Day 0)
+export async function getUnscheduledSpots(tripId: string) {
+	const supabase = await createSupabaseServerClient();
+	const { data, error } = await supabase
+		.from("spots")
+		.select("*, expenses(*)")
+		.eq("trip_id", tripId)
+		.eq("day", 0) // 🚀 關鍵：抓取 Day 0
+		.order("created_at", { ascending: false });
+
+	if (error) return [];
+	return data;
+}
+
+// 2. 將口袋名單移入行程
+export async function moveSpotToDay(spotId: string, targetDay: number, tripId: string) {
+	const supabase = await createSupabaseServerClient();
+
+	// 取得該天現有的景點數量，決定新的 order_index
+	const { data: existing } = await supabase
+		.from("spots")
+		.select("id")
+		.eq("trip_id", tripId)
+		.eq("day", targetDay);
+
+	const nextIndex = existing ? existing.length : 0;
+
+	const { error } = await supabase
+		.from("spots")
+		.update({
+			day: targetDay,
+			order_index: nextIndex,
+			time: "09:00" // 移入時給個預設時間
+		})
+		.eq("id", spotId);
+
+	if (error) throw error;
+	revalidatePath(`/trip/${tripId}`);
+}
