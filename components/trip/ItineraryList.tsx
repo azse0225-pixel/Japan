@@ -336,7 +336,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                     onClick={() => setIsMemberModalOpen(true)}
                     className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-xs font-black hover:bg-emerald-100 transition-colors"
                   >
-                    👥 成員管理
+                    👥 成員
                   </button>
                   <button
                     id="download-btn"
