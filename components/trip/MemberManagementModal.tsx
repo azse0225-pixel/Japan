@@ -5,6 +5,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { addTripMember, deleteTripMember } from "@/lib/actions/trip-actions";
+import { useLockBodyScroll } from "@/hooks/useLockBodyScroll"; // 🚀 引入 Hook
 
 export function MemberManagementModal({
   isOpen,
@@ -16,6 +17,8 @@ export function MemberManagementModal({
   // ---------------------------------------------------------
   // 1. Hooks 放在最上方
   // ---------------------------------------------------------
+  useLockBodyScroll(isOpen);
+
   const [newMemberName, setNewMemberName] = useState("");
   // 存儲準備要刪除的成員對象 {id, name}
   const [deleteTarget, setDeleteTarget] = useState<{

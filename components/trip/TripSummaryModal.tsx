@@ -5,6 +5,7 @@
 import { useState, useMemo, useEffect } from "react"; // 🚀 加入 useEffect
 import { cn } from "@/lib/utils";
 import { addTripLevelExpense } from "@/lib/actions/trip-actions";
+import { useLockBodyScroll } from "@/hooks/useLockBodyScroll"; // 🚀 引入 Hook
 
 export function TripSummaryModal({
   isOpen,
@@ -21,6 +22,7 @@ export function TripSummaryModal({
   // ---------------------------------------------------------
   // 1. 所有的 Hook 必須放在最頂層
   // ---------------------------------------------------------
+  useLockBodyScroll(isOpen);
   const [isAdding, setIsAdding] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -33,20 +35,6 @@ export function TripSummaryModal({
     involved_members: members?.map((m: any) => m.id) || [],
     cost_breakdown: {} as Record<string, number>,
   });
-
-  // 🚀 優化：防止背景滾動的邏輯
-  useEffect(() => {
-    if (isOpen) {
-      // 開啟時禁止滾動並記錄目前滾動位置以防抖動
-      document.body.style.overflow = "hidden";
-    } else {
-      // 關閉時恢復滾動
-      document.body.style.overflow = "unset";
-    }
-    return () => {
-      document.body.style.overflow = "unset";
-    };
-  }, [isOpen]);
   useEffect(() => {
     if (members?.length > 0 && !newExp.payer_id) {
       setNewExp((prev) => ({

@@ -45,3 +45,8 @@ body {
     font-size: 16px !important;
   }
 }
+
+body {
+  /* 讓網頁永遠保留滾動軸的寬度，就不會因為 Modal 開啟而跳動了 */
+  scrollbar-gutter: stable;
+}

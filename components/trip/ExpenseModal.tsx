@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
-
+import { useLockBodyScroll } from "@/hooks/useLockBodyScroll"; // 🚀 引入 Hook
 // 定義成員類型，解決 'any' 報錯問題
 interface Member {
   id: string;
@@ -11,6 +11,7 @@ interface Member {
 }
 
 export function ExpenseModal({ isOpen, onClose, spot, members, onSave }: any) {
+  useLockBodyScroll(isOpen);
   const [localList, setLocalList] = useState<any[]>(spot.expense_list || []);
   const [showSummary, setShowSummary] = useState(false);
 
@@ -185,21 +186,28 @@ export function ExpenseModal({ isOpen, onClose, spot, members, onSave }: any) {
 
                           {/* 2. 檢查邏輯與金額輸入 */}
                           {(() => {
-                            const breakdownSum: number = (
-                              Object.values(exp.cost_breakdown || {}) as (
-                                | number
-                                | string
-                              )[]
-                            ).reduce(
+                            // 1. 計算目前手動輸入的總和
+                            const breakdownValues = Object.values(
+                              exp.cost_breakdown || {}
+                            ) as (number | string)[];
+                            const breakdownSum = breakdownValues.reduce(
                               (acc: number, val: number | string) =>
                                 acc + (Number(val) || 0),
                               0
                             );
 
-                            // 🚀 2. 判定邏輯保持不變
+                            // 🚀 關鍵判斷：是否有人填過金額？
+                            // 我們檢查 cost_breakdown 的 key 數量，如果 > 0，代表進入「手動模式」
+                            const hasManualInput =
+                              Object.keys(exp.cost_breakdown || {}).length > 0;
+
+                            // 🚀 修改後的判定邏輯：
+                            // 只有在「手動模式」下，且「總額與手動加總不符」時，才顯示不平衡
                             const isUnbalanced =
+                              hasManualInput &&
                               exp.amount > 0 &&
                               Math.abs(breakdownSum - exp.amount) > 0.1;
+
                             return (
                               <div className="relative flex-1">
                                 <input
@@ -210,28 +218,40 @@ export function ExpenseModal({ isOpen, onClose, spot, members, onSave }: any) {
                                     const val = e.target.value;
                                     const parsedValue =
                                       val === "" ? 0 : parseFloat(val);
-                                    handleUpdate(
-                                      exp.id,
-                                      "amount",
-                                      isNaN(parsedValue) ? 0 : parsedValue
+
+                                    // 💡 當使用者直接改「主金額」時，清空手動紀錄，回歸「自動平分模式」
+                                    setLocalList((prev) =>
+                                      prev.map((item) =>
+                                        item.id === exp.id
+                                          ? {
+                                              ...item,
+                                              amount: isNaN(parsedValue)
+                                                ? 0
+                                                : parsedValue,
+                                              cost_breakdown: {},
+                                            }
+                                          : item
+                                      )
                                     );
                                   }}
                                   onFocus={(e) => e.target.select()}
                                   className={cn(
                                     "bg-transparent border-none outline-none font-black w-full transition-all duration-300",
-                                    // 🚀 動態變色：不平衡時閃爍紅色，平衡時顯示靛藍色
                                     isUnbalanced
                                       ? "text-rose-500 animate-pulse"
                                       : "text-indigo-600"
                                   )}
                                 />
 
-                                {/* 🚀 提示標籤：僅在不平衡時浮現 */}
+                                {/* 只有在手動模式且不平衡時才顯示提示文字 */}
                                 {isUnbalanced && (
                                   <div className="absolute -bottom-5 left-0 flex items-center gap-1 whitespace-nowrap animate-in fade-in slide-in-from-top-1">
                                     <span className="text-[8px] font-black bg-rose-100 text-rose-500 px-1.5 py-0.5 rounded-md shadow-sm">
-                                      分配總和: {breakdownSum.toLocaleString()}{" "}
-                                      (未對齊)
+                                      已分配: {breakdownSum.toLocaleString()} /
+                                      剩餘:{" "}
+                                      {(
+                                        exp.amount - breakdownSum
+                                      ).toLocaleString()}
                                     </span>
                                   </div>
                                 )}
