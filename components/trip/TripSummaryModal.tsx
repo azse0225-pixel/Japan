@@ -485,6 +485,14 @@ export function TripSummaryModal({
                     className="bg-slate-50 rounded-2xl p-4 border border-slate-100 shadow-sm relative group overflow-hidden"
                   >
                     <div className="flex justify-between items-start mb-1.5">
+                      <div className="flex flex-col">
+                        <span className="text-[9px] font-black text-indigo-400 uppercase leading-none mb-1">
+                          Day {exp.day} • {exp.spotName}
+                        </span>
+                        <h4 className="text-sm font-black text-slate-700 leading-tight">
+                          {exp.description}
+                        </h4>
+                      </div>
                       <div className="flex items-center gap-2">
                         <input
                           type="checkbox"
@@ -501,14 +509,6 @@ export function TripSummaryModal({
                         <span className="text-[10px] font-bold text-slate-400">
                           已結清
                         </span>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-[9px] font-black text-indigo-400 uppercase leading-none mb-1">
-                          Day {exp.day} • {exp.spotName}
-                        </span>
-                        <h4 className="text-sm font-black text-slate-700 leading-tight">
-                          {exp.description}
-                        </h4>
                       </div>
                       <button
                         onClick={() => setDeleteTargetId(exp.id)}
