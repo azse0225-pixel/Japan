@@ -232,6 +232,7 @@ export function TripSummaryModal({
                       onChange={(e) =>
                         setNewExp({ ...newExp, description: e.target.value })
                       }
+                      onFocus={(e) => e.target.select()}
                       className="bg-white p-2.5 sm:p-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold shadow-sm outline-none"
                     />
                   </div>
@@ -289,6 +290,7 @@ export function TripSummaryModal({
                                 onChange={(e) =>
                                   handleMemberAmountChange(m.id, e.target.value)
                                 }
+                                onFocus={(e) => e.target.select()}
                                 className="w-12 sm:w-16 bg-transparent text-xs sm:text-sm font-black text-indigo-600 outline-none"
                               />
                             </div>

@@ -171,11 +171,28 @@ export async function getSpots(tripId: string, day?: number) {
 	});
 }
 
-export async function addSpotToDB(tripId: string, name: string, day: number, lat?: number, lng?: number, category: string = 'spot', time: string = "") {
+export async function addSpotToDB(
+	tripId: string,
+	name: string,
+	day: number,
+	lat?: number,
+	lng?: number,
+	place_id: string = "", // 👈 關鍵：新增這個參數
+	category: string = 'spot',
+	time: string = ""
+) {
 	const supabase = await createSupabaseServerClient();
-	const { data: existingSpots } = await supabase.from('spots').select('id').eq('trip_id', tripId).eq('day', day);
+
+	// 取得現有景點數量來決定 order_index
+	const { data: existingSpots } = await supabase
+		.from('spots')
+		.select('id')
+		.eq('trip_id', tripId)
+		.eq('day', day);
+
 	const nextIndex = existingSpots ? existingSpots.length : 0;
 
+	// 🚀 寫入資料庫：記得把 place_id 塞進去
 	const { error } = await supabase.from('spots').insert([{
 		trip_id: tripId,
 		name,
@@ -183,17 +200,46 @@ export async function addSpotToDB(tripId: string, name: string, day: number, lat
 		order_index: nextIndex,
 		lat,
 		lng,
+		place_id, // 👈 關鍵：這裡要把值寫進資料庫欄位
 		category,
 		time
 	}]);
-	if (error) throw error;
+	if (error) {
+		console.error("❌ 新增景點失敗:", error.message);
+		throw error;
+	}
 	revalidatePath(`/trip/${tripId}`);
 }
 
+// lib/actions/trip-actions.ts
+
 export async function deleteSpot(tripId: string, spotId: string) {
 	const supabase = await createSupabaseServerClient();
-	const { error } = await supabase.from('spots').delete().eq('id', spotId);
-	if (error) throw error;
+
+	// 🚀 1. 優先刪除與此景點關聯的所有費用記錄
+	// 這樣分帳報表（TripSummaryModal）才會即時扣除這些金額
+	const { error: expenseError } = await supabase
+		.from('expenses')
+		.delete()
+		.eq('spot_id', spotId);
+
+	if (expenseError) {
+		// 如果費用刪除失敗，我們記錄錯誤，但通常還是會繼續嘗試刪除景點
+		console.error("❌ 刪除關聯費用失敗:", expenseError.message);
+	}
+
+	// 🚀 2. 接著刪除景點本身
+	const { error: spotError } = await supabase
+		.from('spots')
+		.delete()
+		.eq('id', spotId);
+
+	if (spotError) {
+		console.error("❌ 刪除景點失敗:", spotError.message);
+		throw spotError;
+	}
+
+	// 🚀 3. 重新驗證頁面快取，讓前端畫面（包含分帳金額）同步刷新
 	revalidatePath(`/trip/${tripId}`);
 }
 

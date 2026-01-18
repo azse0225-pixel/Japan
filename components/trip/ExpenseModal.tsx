@@ -163,6 +163,7 @@ export function ExpenseModal({ isOpen, onClose, spot, members, onSave }: any) {
                             const val = e.target.value;
                             handleUpdate(exp.id, "description", val);
                           }}
+                          onFocus={(e) => e.target.select()}
                           className="bg-transparent border-none outline-none font-bold text-slate-700 w-full"
                           placeholder="描述..."
                         />
@@ -183,14 +184,13 @@ export function ExpenseModal({ isOpen, onClose, spot, members, onSave }: any) {
                           </select>
                           <input
                             type="number"
-                            value={
-                              Number.isNaN(exp.amount) ||
-                              exp.amount === undefined
-                                ? 0
-                                : exp.amount
-                            }
+                            // 🚀 修改 1：當金額為 0 時，讓 value 變成空字串，這樣才會露出 placeholder
+                            value={exp.amount === 0 ? "" : exp.amount}
+                            // 🚀 修改 2：增加 placeholder，這就是你說的「顯示在背景」
+                            placeholder="0"
                             onChange={(e) => {
                               const val = e.target.value;
+                              // 如果使用者刪光了變空字串，我們在資料層給它 0，但在畫面上它會顯示 placeholder
                               const parsedValue =
                                 val === "" ? 0 : parseFloat(val);
                               handleUpdate(
@@ -199,7 +199,8 @@ export function ExpenseModal({ isOpen, onClose, spot, members, onSave }: any) {
                                 isNaN(parsedValue) ? 0 : parsedValue
                               );
                             }}
-                            className="bg-transparent border-none outline-none font-black text-indigo-600 w-full"
+                            onFocus={(e) => e.target.select()}
+                            className="bg-transparent border-none outline-none font-black text-indigo-600 w-full placeholder:text-indigo-300"
                           />
                         </div>
                       </td>

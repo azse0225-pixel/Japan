@@ -51,6 +51,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     lat: number;
     lng: number;
   } | null>(null);
+  const [pendingPlaceId, setPendingPlaceId] = useState<string | null>(null); // 🚀 新增這一行
   const [isTripSummaryOpen, setIsTripSummaryOpen] = useState(false);
   const [focusedSpot, setFocusedSpot] = useState<any>(null);
   const [selectedDay, setSelectedDay] = useState(1);
@@ -155,7 +156,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
         {
           input: inputValue,
           language: "zh-TW",
-          componentRestrictions: { country: tripData?.country_code || "JP" },
+          // componentRestrictions: { country: tripData?.country_code || "JP" },
         },
         (predictions) => setSuggestions(predictions || [])
       );
@@ -220,11 +221,13 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
           selectedDay,
           lat,
           lng,
+          pendingPlaceId || "", // 🚀 傳入 place_id
           selectedCategory,
           newSpotTime
         );
         setInputValue("");
         setPendingLocation(null);
+        setPendingPlaceId(null); // 🚀 儲存成功後清空
         initLoad(false);
       } else {
         alert("找不到地點座標");
@@ -415,12 +418,12 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                           setFocusedSpot(spot);
                           scrollToMap();
                         }}
-                        onDelete={(id: string) =>
-                          // 刪除通常需要重新載入，因為順序會變，但我們可以先過濾掉
+                        onDelete={(id: string) => {
                           deleteSpot(tripId, id).then(() => {
                             setSpots((prev) => prev.filter((s) => s.id !== id));
-                          })
-                        }
+                            initLoad(false, false);
+                          });
+                        }}
                         onNoteChange={handleNoteChange} // 這個妳已經寫好本地更新了，很棒！
                         onCategoryChange={(id, cat) => {
                           // 1. 先改本地狀態
@@ -467,6 +470,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                 onSelectSuggestion={(id, desc) => {
                   setSuggestions([]);
                   setIsLoading(true);
+                  setPendingPlaceId(id);
                   // @ts-ignore
                   const place = new google.maps.places.Place({ id });
                   place
