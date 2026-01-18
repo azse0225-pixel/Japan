@@ -1,7 +1,7 @@
 // components/trip/UnscheduledSpotsModal.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect } from "react"; // 🚀 引入 useRef
 import { cn } from "@/lib/utils";
 import { useLockBodyScroll } from "@/hooks/useLockBodyScroll";
 import {
@@ -9,6 +9,7 @@ import {
   moveSpotToDay,
   deleteSpot,
   addSpotToDB,
+  updateSpotNote,
 } from "@/lib/actions/trip-actions";
 
 export default function UnscheduledSpotsModal({
@@ -23,9 +24,15 @@ export default function UnscheduledSpotsModal({
 
   // 🚀 新增狀態：記錄目前展開哪一個景點的排程按鈕
   const [expandedId, setExpandedId] = useState<string | null>(null);
-
+  const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
   const [inputValue, setInputValue] = useState("");
   const [suggestions, setSuggestions] = useState<any[]>([]);
+  // 🚀 1. 新增狀態：記錄哪些景點的內容「有變更但尚未儲存」
+  const [unsavedChanges, setUnsavedChanges] = useState<Record<string, boolean>>(
+    {},
+  );
+  // 🚀 2. 新增狀態：記錄儲存中的轉圈狀態
+  const [savingId, setSavingId] = useState<string | null>(null);
   const [pendingLocation, setPendingLocation] = useState<{
     lat: number;
     lng: number;
@@ -34,24 +41,26 @@ export default function UnscheduledSpotsModal({
   const [isAdding, setIsAdding] = useState(false);
 
   useLockBodyScroll(isOpen);
-
   const loadData = async () => {
     setLoading(true);
     const data = await getUnscheduledSpots(tripId);
     setList(data);
+    const notesMap: Record<string, string> = {};
+    data.forEach((spot: any) => {
+      notesMap[spot.id] = spot.note || "";
+    });
+    setLocalNotes(notesMap);
+    setUnsavedChanges({}); // 重新載入後清空變更狀態
     setLoading(false);
   };
 
   useEffect(() => {
     if (isOpen) {
       loadData();
-      setExpandedId(null); // 每次打開時重設展開狀態
+      setExpandedId(null);
     }
   }, [isOpen, tripId]);
-
-  // Google Places 搜尋邏輯 (與之前相同)...
   useEffect(() => {
-    // 🚀 修改點：如果已經有 pendingLocation，代表進入「編輯名稱模式」，不再觸發搜尋建議
     if (!inputValue || inputValue.length < 2 || pendingLocation) {
       setSuggestions([]);
       return;
@@ -65,8 +74,28 @@ export default function UnscheduledSpotsModal({
       );
     }, 300);
     return () => clearTimeout(timeoutId);
-  }, [inputValue, pendingLocation]); // 🚀 記得加入 pendingLocation 作為依賴項
+  }, [inputValue, pendingLocation]);
+  const handleNoteChange = (id: string, newNote: string) => {
+    setLocalNotes((prev) => ({ ...prev, [id]: newNote }));
+    // 標記為「已變更」
+    setUnsavedChanges((prev) => ({ ...prev, [id]: true }));
+  };
+  // 🚀 4. 建立手動儲存函式
+  const handleSaveNote = async (id: string) => {
+    setSavingId(id);
+    try {
+      const noteToSave = localNotes[id] || "";
+      await updateSpotNote(id, noteToSave);
 
+      // 儲存成功後，解除「已變更」標記
+      setUnsavedChanges((prev) => ({ ...prev, [id]: false }));
+      console.log("備註已手動儲存成功！");
+    } catch (err) {
+      alert("儲存失敗，請檢查網路連線");
+    } finally {
+      setSavingId(null);
+    }
+  };
   const handleSelectSuggestion = async (
     placeId: string,
     description: string,
@@ -112,10 +141,10 @@ export default function UnscheduledSpotsModal({
       setIsAdding(false);
     }
   };
-
   const handleMove = async (spotId: string, day: number) => {
     try {
-      await moveSpotToDay(spotId, day, tripId);
+      const currentNote = localNotes[spotId] || "";
+      await moveSpotToDay(spotId, day, tripId, currentNote);
       await loadData();
       if (onRefresh) onRefresh();
     } catch (e) {
@@ -165,7 +194,7 @@ export default function UnscheduledSpotsModal({
               {pendingLocation && (
                 <div className="mt-2 ml-2 flex items-center justify-between animate-in fade-in slide-in-from-left-2">
                   <p className="text-[10px] font-black text-emerald-500 flex items-center gap-1">
-                    ✅ 座標已鎖定，你可以隨意自訂顯示名稱
+                    📍座標已鎖定，你可以隨意自訂顯示名稱
                   </p>
                   <button
                     onClick={() => {
@@ -298,7 +327,43 @@ export default function UnscheduledSpotsModal({
 
                 {/* 🚀 展開後的 Day 按鈕區域 */}
                 {expandedId === spot.id && (
-                  <div className="mt-5 pt-5 border-t border-slate-100 animate-in fade-in slide-in-from-top-3 duration-300">
+                  <div className="mt-5 pt-5 border-t border-slate-100 animate-in fade-in slide-in-from-top-3">
+                    {/* 📝 備註輸入框 */}
+                    <div className="mb-5">
+                      <div className="flex justify-between items-center mb-2">
+                        <label className="text-[9px] font-black text-amber-500 uppercase tracking-widest ml-1">
+                          行前筆記
+                        </label>
+
+                        {/* 🚀 5. 根據狀態切換按鈕 */}
+                        {unsavedChanges[spot.id] ? (
+                          <button
+                            onClick={() => handleSaveNote(spot.id)}
+                            disabled={savingId === spot.id}
+                            className="text-[10px] font-black bg-amber-500 text-white px-3 py-1 rounded-lg shadow-lg shadow-amber-200 animate-bounce transition-all active:scale-90"
+                          >
+                            {savingId === spot.id
+                              ? "儲存中..."
+                              : "💾 點擊儲存變更"}
+                          </button>
+                        ) : (
+                          <span className="text-[8px] font-bold text-emerald-400 italic uppercase flex items-center gap-1">
+                            ✓ 已與雲端同步
+                          </span>
+                        )}
+                      </div>
+                      <textarea
+                        value={localNotes[spot.id] || ""}
+                        onChange={(e) =>
+                          handleNoteChange(spot.id, e.target.value)
+                        }
+                        placeholder="備註...(例如: 需預約、必吃項目)"
+                        rows={2}
+                        className="w-full p-4 rounded-2xl bg-amber-50/40 border border-amber-100 text-xs font-bold text-slate-600 outline-none focus:bg-amber-50 focus:border-amber-300 transition-all placeholder:text-slate-200 resize-none"
+                      />
+                    </div>
+
+                    {/* 安排天數按鈕 */}
                     <p className="text-[10px] font-black text-slate-400 mb-3 uppercase tracking-widest ml-1">
                       安排至行程 Day：
                     </p>
@@ -308,7 +373,7 @@ export default function UnscheduledSpotsModal({
                           <button
                             key={d}
                             onClick={() => handleMove(spot.id, d)}
-                            className="py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-[11px] font-black text-slate-600 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all shadow-sm active:scale-90"
+                            className="py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-[11px] font-black text-slate-600 hover:bg-indigo-600 hover:text-white transition-all shadow-sm active:scale-90"
                           >
                             D{d}
                           </button>

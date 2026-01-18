@@ -276,7 +276,9 @@ export async function updateSpotsOrder(tripId: string, updatedSpots: any[], day:
 
 export async function updateSpotNote(spotId: string, note: string) {
 	const supabase = await createSupabaseServerClient();
-	await supabase.from('spots').update({ note }).eq('id', spotId);
+	// 只要 eq('id') 就能存，不管它是 Day 0 還是 Day 1
+	const { error } = await supabase.from('spots').update({ note }).eq('id', spotId);
+	if (error) throw error;
 }
 
 export async function updateSpotCategory(spotId: string, category: string) {
@@ -562,7 +564,7 @@ export async function getUnscheduledSpots(tripId: string) {
 }
 
 // 2. 將口袋名單移入行程
-export async function moveSpotToDay(spotId: string, targetDay: number, tripId: string) {
+export async function moveSpotToDay(spotId: string, targetDay: number, tripId: string, note: string = "") {
 	const supabase = await createSupabaseServerClient();
 
 	// 取得該天現有的景點數量，決定新的 order_index
@@ -579,6 +581,7 @@ export async function moveSpotToDay(spotId: string, targetDay: number, tripId: s
 		.update({
 			day: targetDay,
 			order_index: nextIndex,
+			note: note, // 🚀 關鍵：將備忘錄存入資料庫
 			time: "09:00" // 移入時給個預設時間
 		})
 		.eq("id", spotId);
