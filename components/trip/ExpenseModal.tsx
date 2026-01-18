@@ -170,38 +170,74 @@ export function ExpenseModal({ isOpen, onClose, spot, members, onSave }: any) {
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-2">
-                          {/* ✨ 加入幣別切換選單 */}
+                          {/* 1. 幣別切換選單 */}
                           <select
                             value={exp.currency || "JPY"}
                             onChange={(e) => {
                               const val = e.target.value;
                               handleUpdate(exp.id, "currency", val);
                             }}
-                            className="bg-white border border-slate-200 rounded-lg px-1 py-1 text-[10px] font-black outline-none cursor-pointer"
+                            className="bg-white border border-slate-200 rounded-lg px-1 py-1 text-[10px] font-black outline-none cursor-pointer shrink-0"
                           >
                             <option value="JPY">¥</option>
                             <option value="TWD">$</option>
                           </select>
-                          <input
-                            type="number"
-                            // 🚀 修改 1：當金額為 0 時，讓 value 變成空字串，這樣才會露出 placeholder
-                            value={exp.amount === 0 ? "" : exp.amount}
-                            // 🚀 修改 2：增加 placeholder，這就是你說的「顯示在背景」
-                            placeholder="0"
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              // 如果使用者刪光了變空字串，我們在資料層給它 0，但在畫面上它會顯示 placeholder
-                              const parsedValue =
-                                val === "" ? 0 : parseFloat(val);
-                              handleUpdate(
-                                exp.id,
-                                "amount",
-                                isNaN(parsedValue) ? 0 : parsedValue
-                              );
-                            }}
-                            onFocus={(e) => e.target.select()}
-                            className="bg-transparent border-none outline-none font-black text-indigo-600 w-full placeholder:text-indigo-300"
-                          />
+
+                          {/* 2. 檢查邏輯與金額輸入 */}
+                          {(() => {
+                            const breakdownSum: number = (
+                              Object.values(exp.cost_breakdown || {}) as (
+                                | number
+                                | string
+                              )[]
+                            ).reduce(
+                              (acc: number, val: number | string) =>
+                                acc + (Number(val) || 0),
+                              0
+                            );
+
+                            // 🚀 2. 判定邏輯保持不變
+                            const isUnbalanced =
+                              exp.amount > 0 &&
+                              Math.abs(breakdownSum - exp.amount) > 0.1;
+                            return (
+                              <div className="relative flex-1">
+                                <input
+                                  type="number"
+                                  value={exp.amount === 0 ? "" : exp.amount}
+                                  placeholder="0"
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    const parsedValue =
+                                      val === "" ? 0 : parseFloat(val);
+                                    handleUpdate(
+                                      exp.id,
+                                      "amount",
+                                      isNaN(parsedValue) ? 0 : parsedValue
+                                    );
+                                  }}
+                                  onFocus={(e) => e.target.select()}
+                                  className={cn(
+                                    "bg-transparent border-none outline-none font-black w-full transition-all duration-300",
+                                    // 🚀 動態變色：不平衡時閃爍紅色，平衡時顯示靛藍色
+                                    isUnbalanced
+                                      ? "text-rose-500 animate-pulse"
+                                      : "text-indigo-600"
+                                  )}
+                                />
+
+                                {/* 🚀 提示標籤：僅在不平衡時浮現 */}
+                                {isUnbalanced && (
+                                  <div className="absolute -bottom-5 left-0 flex items-center gap-1 whitespace-nowrap animate-in fade-in slide-in-from-top-1">
+                                    <span className="text-[8px] font-black bg-rose-100 text-rose-500 px-1.5 py-0.5 rounded-md shadow-sm">
+                                      分配總和: {breakdownSum.toLocaleString()}{" "}
+                                      (未對齊)
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
                       </td>
                       <td className="px-4 py-4">

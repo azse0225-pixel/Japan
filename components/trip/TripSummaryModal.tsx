@@ -1,4 +1,4 @@
-// components/trip/TripDetailHeader.tsx
+// components/trip/TripSummaryModal.tsx
 
 "use client";
 
@@ -23,7 +23,7 @@ export function TripSummaryModal({
   // ---------------------------------------------------------
   const [isAdding, setIsAdding] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
-
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [newExp, setNewExp] = useState({
     description: "",
     amount: 0,
@@ -47,7 +47,21 @@ export function TripSummaryModal({
       document.body.style.overflow = "unset";
     };
   }, [isOpen]);
-
+  useEffect(() => {
+    if (members?.length > 0 && !newExp.payer_id) {
+      setNewExp((prev) => ({
+        ...prev,
+        payer_id: members[0].id,
+        involved_members: members.map((m: any) => m.id),
+      }));
+    }
+  }, [members, isOpen]);
+  useEffect(() => {
+    if (errorMessage) {
+      const timer = setTimeout(() => setErrorMessage(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [errorMessage]);
   // 整理所有費用的顯示格式
   const allExpenses = useMemo(() => {
     return allTripExpenses
@@ -118,23 +132,40 @@ export function TripSummaryModal({
   };
 
   const handleQuickAdd = async () => {
-    if (!newExp.description || newExp.amount <= 0) return;
+    if (!newExp.description.trim()) return setErrorMessage("請輸入項目描述");
+    if (newExp.amount <= 0) return setErrorMessage("金額必須大於 0");
+    if (!newExp.payer_id) return setErrorMessage("請選擇一位墊付人");
+    if (newExp.involved_members.length === 0)
+      return setErrorMessage("請至少選擇一位平分成員");
+    const cleanBreakdown: Record<string, number> = {};
+    newExp.involved_members.forEach((mId: any) => {
+      cleanBreakdown[mId] = Number(newExp.cost_breakdown[mId]) || 0;
+    });
+
     try {
       await addTripLevelExpense({
         trip_id: tripId,
         day: newExp.day,
-        title: newExp.description,
-        amount: newExp.amount,
+        title: newExp.description.trim(),
+        amount: Number(newExp.amount), // 強制轉數字
         currency: newExp.currency,
-        payer_id: newExp.payer_id,
+        payer_id: newExp.payer_id, // 確保這是有效的成員 ID
         involved_members: newExp.involved_members,
-        cost_breakdown: newExp.cost_breakdown,
+        cost_breakdown: cleanBreakdown,
       });
+
       setIsAdding(false);
-      setNewExp({ ...newExp, description: "", amount: 0, cost_breakdown: {} });
+      // 重設表單
+      setNewExp({
+        ...newExp,
+        description: "",
+        amount: 0,
+        cost_breakdown: {},
+      });
       onRefresh();
     } catch (e) {
-      alert("新增失敗");
+      console.error("Server Action Error:", e);
+      alert("儲存失敗，可能是資料庫連線問題或墊付人設定錯誤");
     }
   };
 
@@ -236,16 +267,58 @@ export function TripSummaryModal({
                       className="bg-white p-2.5 sm:p-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold shadow-sm outline-none"
                     />
                   </div>
+                  {/* 🚀 找到這個 label，然後替換掉整個 div */}
                   <div className="flex flex-col gap-1 col-span-2 md:col-span-1">
                     <label className="text-[9px] sm:text-[10px] font-black text-indigo-400 ml-2">
                       總額 (自動加總)
                     </label>
-                    <input
-                      type="number"
-                      readOnly
-                      value={newExp.amount}
-                      className="bg-white/50 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black text-indigo-600 shadow-inner cursor-not-allowed"
-                    />
+                    {
+                      (() => {
+                        // 🚀 1. 計算目前下方分帳明細的總和 (TypeScript 斷言修正)
+                        const currentSum: number = (
+                          Object.values(newExp.cost_breakdown || {}) as (
+                            | number
+                            | string
+                          )[]
+                        ).reduce(
+                          (acc: number, val: number | string) =>
+                            acc + (Number(val) || 0),
+                          0
+                        );
+
+                        // 🚀 2. 判斷是否「不平衡」：總額 > 0 且 分配總額與主金額不符
+                        const isUnbalanced =
+                          newExp.amount > 0 &&
+                          Math.abs(currentSum - newExp.amount) > 0.1;
+
+                        return (
+                          <div className="relative">
+                            <input
+                              type="number"
+                              readOnly
+                              // 如果金額是 0，顯示空字串讓 placeholder="0" 露出來
+                              value={newExp.amount === 0 ? "" : newExp.amount}
+                              placeholder="0"
+                              className={cn(
+                                "bg-white/50 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black shadow-inner cursor-not-allowed w-full transition-all duration-300 outline-none",
+                                // 🚀 當不平衡時：字體變紅、加入紅色邊框、並輕微閃爍 (animate-pulse)
+                                isUnbalanced
+                                  ? "text-rose-500 ring-2 ring-rose-100 animate-pulse"
+                                  : "text-indigo-600"
+                              )}
+                            />
+
+                            {/* 🚀 不平衡時的小紅點警示燈 */}
+                            {isUnbalanced && (
+                              <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })() /* 結束 IIFE 函式 */
+                    }
                   </div>
                 </div>
 
@@ -286,7 +359,13 @@ export function TripSummaryModal({
                               <input
                                 type="number"
                                 placeholder="0"
-                                value={newExp.cost_breakdown[m.id] || ""}
+                                // 🚀 優化：值為 0 時顯示空字串，露出背景 0
+                                value={
+                                  newExp.cost_breakdown[m.id] === 0 ||
+                                  newExp.cost_breakdown[m.id] === undefined
+                                    ? ""
+                                    : newExp.cost_breakdown[m.id]
+                                }
                                 onChange={(e) =>
                                   handleMemberAmountChange(m.id, e.target.value)
                                 }
@@ -553,6 +632,16 @@ export function TripSummaryModal({
             關閉報表
           </button>
         </div>
+        {errorMessage && (
+          <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-[500] w-full max-w-xs px-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <div className="bg-rose-500/95 backdrop-blur-md text-white px-6 py-3.5 rounded-2xl shadow-2xl flex items-center justify-center gap-3 border border-rose-400/50">
+              <span className="text-base">⚠️</span>
+              <span className="text-[11px] sm:text-xs font-black tracking-wider whitespace-nowrap">
+                {errorMessage}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

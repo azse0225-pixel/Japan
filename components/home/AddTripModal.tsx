@@ -1,4 +1,5 @@
-// app/AddTripModal.tsx
+//components/home/AddTripModal.tsx
+
 "use client";
 
 import { useState } from "react";

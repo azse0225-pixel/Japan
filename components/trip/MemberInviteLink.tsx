@@ -1,3 +1,5 @@
+// components/trip/MemberInviteLink.tsx
+
 "use client";
 
 // ✅ 保持原有的導入，不做多餘更動

@@ -1,3 +1,5 @@
+// components/trip/MemberManagementModal.tsx
+
 "use client";
 
 import { useState } from "react";
