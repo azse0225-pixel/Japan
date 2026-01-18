@@ -107,8 +107,8 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
       setMembers(mData || []);
       setSpots(
         (sData || []).sort((a: any, b: any) =>
-          (a.time || "99:99").localeCompare(b.time || "99:99")
-        )
+          (a.time || "99:99").localeCompare(b.time || "99:99"),
+        ),
       );
       setAllSpots(allSData || []);
 
@@ -135,7 +135,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
           table: "expenses",
           filter: `trip_id=eq.${tripId}`,
         },
-        () => initLoad(false, false) // 🚀 費用變動時，無感刷新資料
+        () => initLoad(false, false), // 🚀 費用變動時，無感刷新資料
       )
       .subscribe();
 
@@ -158,7 +158,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
           language: "zh-TW",
           // componentRestrictions: { country: tripData?.country_code || "JP" },
         },
-        (predictions) => setSuggestions(predictions || [])
+        (predictions) => setSuggestions(predictions || []),
       );
     }, 300);
     return () => clearTimeout(timeoutId);
@@ -223,7 +223,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
           lng,
           pendingPlaceId || "", // 🚀 傳入 place_id
           selectedCategory,
-          newSpotTime
+          newSpotTime,
         );
         setInputValue("");
         setPendingLocation(null);
@@ -244,15 +244,17 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     if (saveTimerRef.current[id]) clearTimeout(saveTimerRef.current[id]);
     saveTimerRef.current[id] = setTimeout(() => updateSpotNote(id, note), 800);
   };
-
-  // --- 結算邏輯 (修正版) ---
+  // --- 結算邏輯 (加入結清過濾版) ---
   const settlement = useMemo(() => {
     const balances: any = {};
     // 1. 初始化每個成員的餘額
     members.forEach((m) => (balances[m.id] = { JPY: 0, TWD: 0 }));
 
-    // 2. 改用 allTripExpenses 來計算，這樣才包含「雜項」
+    // 2. 遍歷所有費用
     allTripExpenses.forEach((exp: any) => {
+      // 🚀 關鍵修改：如果這筆費用已經勾選「已結清」，直接跳過不計入個人債務
+      if (exp.is_settled) return;
+
       const amount = Number(exp.amount) || 0;
       const inv = exp.involved_members || [];
       const curr = exp.currency || "JPY";
@@ -260,7 +262,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
       const breakdown = exp.cost_breakdown || {};
 
       if (amount > 0 && inv.length > 0) {
-        // A. 參與人扣款
+        // A. 參與人扣款 (欠債增加)
         inv.forEach((mId: string) => {
           if (balances[mId]) {
             const memberCost =
@@ -271,7 +273,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
           }
         });
 
-        // B. 墊付人加回
+        // B. 墊付人加回 (應收回金額增加)
         if (payerId && balances[payerId]) {
           balances[payerId][curr] += amount;
         }
@@ -279,7 +281,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     });
 
     return members.map((m) => ({ ...m, balances: balances[m.id] }));
-  }, [allTripExpenses, members]); // 🚀 依賴項改為 allTripExpenses
+  }, [allTripExpenses, members]); // 依賴項不變
 
   return (
     <div className="w-full pb-20 bg-slate-50/50 min-h-screen">
@@ -389,7 +391,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                                 spot.id,
                                 spot.transport_mode === "TRANSIT"
                                   ? "WALKING"
-                                  : "TRANSIT"
+                                  : "TRANSIT",
                               ).then(() => initLoad(false))
                             }
                             className="relative z-10 bg-white border border-slate-200 px-3 py-0.5 rounded-full text-[10px] font-black shadow-sm hover:border-orange-300 flex items-center gap-1.5 transition-all active:scale-95"
@@ -429,8 +431,8 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                           // 1. 先改本地狀態
                           setSpots((prev) =>
                             prev.map((s) =>
-                              s.id === id ? { ...s, category: cat } : s
-                            )
+                              s.id === id ? { ...s, category: cat } : s,
+                            ),
                           );
                           // 2. 悄悄存檔，不跑 .then(() => initLoad(false))
                           updateSpotCategory(id, cat);
@@ -440,12 +442,12 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                           // 1. 先改本地狀態並重新排序（時間變了排序會動）
                           setSpots((prev) => {
                             const newSpots = prev.map((s) =>
-                              s.id === id ? { ...s, time: t } : s
+                              s.id === id ? { ...s, time: t } : s,
                             );
                             return [...newSpots].sort((a, b) =>
                               (a.time || "99:99").localeCompare(
-                                b.time || "99:99"
-                              )
+                                b.time || "99:99",
+                              ),
                             );
                           });
                           // 2. 悄悄存檔
@@ -536,6 +538,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
         tripId={tripId}
         isOpen={isChecklistOpen}
         onClose={() => setIsChecklistOpen(false)}
+        members={members} // 🚀 記得傳這個！
       />
       {/* ✨ 這裡是新加入的費用管理彈窗 ✨ */}
       {expenseModalSpot && (

@@ -412,18 +412,30 @@ export async function updateTripMemberEmail(memberId: string, email: string) {
 }
 
 // ==========================================
-// 6. 行前清單 (Checklist)
+// 6. 行前清單 (Checklist) - 修改後版本
 // ==========================================
 
 export async function getChecklist(tripId: string) {
 	const supabase = await createSupabaseServerClient();
-	const { data } = await supabase.from('checklists').select('*').eq('trip_id', tripId).order('created_at', { ascending: true });
+	// 這裡抓取全團清單，前端會負責根據 member_id 過濾
+	const { data } = await supabase
+		.from('checklists')
+		.select('*')
+		.eq('trip_id', tripId)
+		.order('created_at', { ascending: true });
 	return data || [];
 }
 
-export async function addChecklistItem(tripId: string, content: string) {
+// 🚀 修改重點：加入 memberId 參數
+export async function addChecklistItem(tripId: string, content: string, memberId: string) {
 	const supabase = await createSupabaseServerClient();
-	const { error } = await supabase.from('checklists').insert([{ trip_id: tripId, content }]);
+	const { error } = await supabase
+		.from('checklists')
+		.insert([{
+			trip_id: tripId,
+			content,
+			member_id: memberId // 存入是誰的清單
+		}]);
 	if (error) throw error;
 	revalidatePath(`/trip/${tripId}`);
 }
@@ -484,17 +496,29 @@ export async function addTripLevelExpense(data: {
 	payer_id: string;
 	involved_members: string[];
 	cost_breakdown?: any;
+	is_settled?: boolean; // 🚀 新增這行
 }) {
 	const supabase = await createSupabaseServerClient();
 
 	const { error } = await supabase.from("expenses").insert([{
 		...data,
 		amount: Number(data.amount) || 0,
-		cost_breakdown: data.cost_breakdown || {}
+		cost_breakdown: data.cost_breakdown || {},
+		is_settled: data.is_settled || false // 🚀 寫入資料庫
 	}]);
 
 	if (error) throw error;
 	revalidatePath(`/trip/${data.trip_id}`);
+}
+export async function toggleExpenseSettled(expenseId: string, isSettled: boolean, tripId: string) {
+	const supabase = await createSupabaseServerClient();
+	const { error } = await supabase
+		.from("expenses")
+		.update({ is_settled: isSettled })
+		.eq("id", expenseId);
+
+	if (error) throw error;
+	revalidatePath(`/trip/${tripId}`);
 }
 export async function getAllTripExpenses(tripId: string) {
 	const supabase = await createSupabaseServerClient();

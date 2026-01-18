@@ -4,7 +4,10 @@
 
 import { useState, useMemo, useEffect } from "react"; // 🚀 加入 useEffect
 import { cn } from "@/lib/utils";
-import { addTripLevelExpense } from "@/lib/actions/trip-actions";
+import {
+  addTripLevelExpense,
+  toggleExpenseSettled,
+} from "@/lib/actions/trip-actions";
 import { useLockBodyScroll } from "@/hooks/useLockBodyScroll"; // 🚀 引入 Hook
 
 export function TripSummaryModal({
@@ -73,11 +76,12 @@ export function TripSummaryModal({
   const totals = useMemo(() => {
     return allExpenses.reduce(
       (acc: any, exp: any) => {
+        if (exp.is_settled) return acc; // ✨ 如果已結清，跳過不計入總額
         const curr = exp.currency || "JPY";
         acc[curr] = (acc[curr] || 0) + (Number(exp.amount) || 0);
         return acc;
       },
-      { JPY: 0, TWD: 0 }
+      { JPY: 0, TWD: 0 },
     );
   }, [allExpenses]);
 
@@ -113,7 +117,7 @@ export function TripSummaryModal({
       const newBreakdown = { ...prev.cost_breakdown, [memberId]: val };
       const newTotal = Object.values(newBreakdown).reduce(
         (sum, v) => sum + v,
-        0
+        0,
       );
       return { ...prev, cost_breakdown: newBreakdown, amount: newTotal };
     });
@@ -221,7 +225,7 @@ export function TripSummaryModal({
                           <option key={d} value={d}>
                             Day {d}
                           </option>
-                        )
+                        ),
                       )}
                     </select>
                   </div>
@@ -271,7 +275,7 @@ export function TripSummaryModal({
                         ).reduce(
                           (acc: number, val: number | string) =>
                             acc + (Number(val) || 0),
-                          0
+                          0,
                         );
 
                         // 🚀 2. 判斷是否「不平衡」：總額 > 0 且 分配總額與主金額不符
@@ -292,7 +296,7 @@ export function TripSummaryModal({
                                 // 🚀 當不平衡時：字體變紅、加入紅色邊框、並輕微閃爍 (animate-pulse)
                                 isUnbalanced
                                   ? "text-rose-500 ring-2 ring-rose-100 animate-pulse"
-                                  : "text-indigo-600"
+                                  : "text-indigo-600",
                               )}
                             />
 
@@ -325,7 +329,7 @@ export function TripSummaryModal({
                             "flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-xl sm:rounded-2xl border transition-all",
                             isInv
                               ? "bg-white border-indigo-200 shadow-sm"
-                              : "opacity-30"
+                              : "opacity-30",
                           )}
                         >
                           <button
@@ -334,7 +338,7 @@ export function TripSummaryModal({
                               "px-2 sm:px-3 py-1 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black",
                               isInv
                                 ? "bg-indigo-500 text-white"
-                                : "bg-slate-200 text-slate-500"
+                                : "bg-slate-200 text-slate-500",
                             )}
                           >
                             {m.name}
@@ -440,7 +444,7 @@ export function TripSummaryModal({
                         "text-[10px] sm:text-xs font-black",
                         s.balances.JPY >= 0
                           ? "text-emerald-500"
-                          : "text-rose-400"
+                          : "text-rose-400",
                       )}
                     >
                       {s.balances.JPY >= 0 ? "+" : ""}
@@ -451,7 +455,7 @@ export function TripSummaryModal({
                         "text-[9px] sm:text-[10px] font-bold opacity-80 mt-0.5",
                         s.balances.TWD >= 0
                           ? "text-emerald-500"
-                          : "text-rose-400"
+                          : "text-rose-400",
                       )}
                     >
                       {s.balances.TWD >= 0 ? "+" : ""}
@@ -481,6 +485,23 @@ export function TripSummaryModal({
                     className="bg-slate-50 rounded-2xl p-4 border border-slate-100 shadow-sm relative group overflow-hidden"
                   >
                     <div className="flex justify-between items-start mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={exp.is_settled}
+                          onChange={(e) =>
+                            toggleExpenseSettled(
+                              exp.id,
+                              e.target.checked,
+                              tripId,
+                            ).then(onRefresh)
+                          }
+                          className="w-4 h-4 rounded-md border-slate-300"
+                        />
+                        <span className="text-[10px] font-bold text-slate-400">
+                          已結清
+                        </span>
+                      </div>
                       <div className="flex flex-col">
                         <span className="text-[9px] font-black text-indigo-400 uppercase leading-none mb-1">
                           Day {exp.day} • {exp.spotName}
@@ -521,6 +542,7 @@ export function TripSummaryModal({
                     <th className="px-8 py-5">項目</th>
                     <th className="px-8 py-5">金額</th>
                     <th className="px-8 py-5">墊付人</th>
+                    <th className="px-4 py-5 w-16 text-center">結清</th>
                     <th className="px-6 py-5 w-16"></th>
                   </tr>
                 </thead>
@@ -538,7 +560,10 @@ export function TripSummaryModal({
                     allExpenses.map((exp: any) => (
                       <tr
                         key={exp.id}
-                        className="group hover:bg-slate-50 transition-colors"
+                        className={cn(
+                          "group hover:bg-slate-50 transition-colors",
+                          exp.is_settled && "opacity-40 grayscale-[0.5]", // 已結清則變半透明並輕微灰階
+                        )}
                       >
                         <td className="px-8 py-5">
                           <span className="text-[10px] font-black text-indigo-400 block leading-none mb-1">
@@ -560,6 +585,22 @@ export function TripSummaryModal({
                             {members.find((m: any) => m.id === exp.payer_id)
                               ?.name || "未設定"}
                           </span>
+                        </td>
+                        <td className="px-4 py-5 text-center">
+                          <input
+                            type="checkbox"
+                            checked={exp.is_settled}
+                            onChange={async (e) => {
+                              // 🚀 呼叫後端 Action 更新狀態
+                              await toggleExpenseSettled(
+                                exp.id,
+                                e.target.checked,
+                                tripId,
+                              );
+                              onRefresh(); // 重新刷取資料
+                            }}
+                            className="w-5 h-5 rounded-lg border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                          />
                         </td>
                         <td className="px-6 py-5">
                           <button
