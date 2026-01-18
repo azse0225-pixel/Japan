@@ -29,8 +29,6 @@ export async function createNewTrip(data: {
 	country_code: string
 }) {
 	const supabase = await createSupabaseServerClient();
-
-	// 嘗試抓取 User (匿名版可為 null)
 	const { data: { user } } = await supabase.auth.getUser();
 
 	const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
@@ -39,9 +37,7 @@ export async function createNewTrip(data: {
 
 	const { error: tripError } = await supabase.from("trips").insert({
 		id: uniqueId,
-		owner_id: user?.id || null,
-		owner_email: user?.email || "anonymous",
-		owner_name: user?.user_metadata?.full_name || "訪客",
+		owner_id: user?.id || null, // 只保留 ID，名字跟 Email 去 profiles 查
 		title: data.title,
 		start_date: data.date,
 		location: data.location,
@@ -60,14 +56,11 @@ export async function getUserTrips() {
 
 	if (!user) return [];
 
-	const email = user.email?.toLowerCase().trim();
-
-	// 同時抓取兩個來源：我是擁有者、我是成員
+	// 直接用 user_id 查，比 email 更安全穩定
 	const [ownedResponse, memberResponse] = await Promise.all([
 		supabase.from("trips").select("*").eq("owner_id", user.id),
-		supabase.from("trip_members").select("trips (*)").eq("user_email", email)
+		supabase.from("trip_members").select("trips (*)").eq("user_id", user.id)
 	]);
-
 	const ownedTrips = ownedResponse.data || [];
 	const participatedTrips = (memberResponse.data || [])
 		.map((m: any) => m.trips)
@@ -144,24 +137,38 @@ export async function deleteTrip(tripId: string) {
 // ==========================================
 // 2. 景點編輯與排序 (Spots)
 // ==========================================
-
 export async function getSpots(tripId: string, day?: number) {
 	const supabase = await createSupabaseServerClient();
 	let query = supabase
 		.from("spots")
-		.select("*")
+		.select("*, expenses(*)")
 		.eq("trip_id", tripId);
+
 	if (day !== undefined && day !== null) {
 		query = query.eq("day", Number(day));
 	}
+
 	const { data, error } = await query
+		.order("day", { ascending: true })
 		.order("time", { ascending: true })
 		.order("order_index", { ascending: true });
+
 	if (error) {
 		console.error("抓取地點失敗:", error.message);
 		return [];
 	}
-	return data || [];
+	return (data || []).map(spot => {
+		const expenses = spot.expenses || [];
+		const totalActual = expenses.reduce((sum: number, e: any) => sum + (Number(e.amount) || 0), 0);
+		return {
+			...spot,
+			expense_list: expenses.map((e: any) => ({
+				...e,
+				description: e.title // 資料庫存 title，前端顯示 description
+			})),
+			actual_cost: totalActual
+		};
+	});
 }
 
 export async function addSpotToDB(tripId: string, name: string, day: number, lat?: number, lng?: number, category: string = 'spot', time: string = "") {
@@ -241,43 +248,49 @@ export async function updateSpotTransportMode(spotId: string, mode: 'WALKING' | 
 	await supabase.from('spots').update({ transport_mode: mode }).eq('id', spotId);
 }
 
-export async function updateSpotCost(
-	spotId: string,
-	estimated: number,
-	actual: number,
-	currency: string // 1. 這裡接到了參數
-) {
+export async function updateSpotExpenseList(tripId: string, spotId: string, expenseList: any[]) {
 	const supabase = await createSupabaseServerClient();
+	const { error: deleteError } = await supabase
+		.from('expenses')
+		.delete()
+		.eq('spot_id', spotId);
 
-	const { error } = await supabase
-		.from("spots")
-		.update({
-			estimated_cost: estimated,
-			actual_cost: actual,
-			currency: currency // ✨ 2. 這裡一定要加上去，才會存入資料庫！
-		})
-		.eq("id", spotId);
-
-	if (error) {
-		console.error("更新金額與幣別失敗:", error.message);
-		throw error;
+	if (deleteError) {
+		console.error("❌ 刪除舊費用失敗:", deleteError.message);
+		throw deleteError;
 	}
+	const insertData = expenseList.map(exp => {
+		const breakdown = exp.cost_breakdown || {};
+		const calculatedAmount = Object.values(breakdown).reduce(
+			(sum: number, val: any) => sum + (Number(val) || 0),
+			0
+		);
+		return {
+			trip_id: tripId,
+			spot_id: spotId,
+			title: exp.description || '未命名消費',
+			// 如果有計算出細項金額，就用計算的，否則才用原本的 amount
+			amount: calculatedAmount > 0 ? calculatedAmount : (Number(exp.amount) || 0),
+			currency: exp.currency || 'JPY',
+			payer_id: exp.payer_id || null,
+			involved_members: exp.involved_members || [],
+			cost_breakdown: breakdown
+		};
+	});
+	// 3. 批量寫入新的費用
+	if (insertData.length > 0) {
+		const { error: insertError } = await supabase
+			.from('expenses')
+			.insert(insertData);
+
+		if (insertError) {
+			console.error("❌ 寫入新費用失敗:", insertError.message);
+			throw insertError;
+		}
+	}
+
+	revalidatePath(`/trip/${tripId}`);
 }
-
-export async function updateSpotSplit(id: string, payerId: string, involvedMembers: string[], breakdown: any) {
-	const supabase = await createSupabaseServerClient();
-	const { error } = await supabase
-		.from('spots')
-		.update({
-			payer_id: payerId,
-			involved_members: involvedMembers,
-			cost_breakdown: breakdown // ✨ 存入 JSON 細項
-		})
-		.eq('id', id);
-
-	if (error) throw error;
-}
-
 // ==========================================
 // 4. 天數與附件
 // ==========================================
@@ -378,5 +391,86 @@ export async function toggleChecklistItem(itemId: string, isChecked: boolean) {
 export async function deleteChecklistItem(itemId: string, tripId: string) {
 	const supabase = await createSupabaseServerClient();
 	await supabase.from('checklists').delete().eq('id', itemId);
+	revalidatePath(`/trip/${tripId}`);
+}
+// ==========================================
+// 7. 費用管理 (Expenses) - 全新加入
+// ==========================================
+
+// 取得該行程所有費用 (可選是否過濾特定景點)
+export async function getExpenses(tripId: string, spotId?: string) {
+	const supabase = await createSupabaseServerClient();
+	let query = supabase.from("expenses").select("*").eq("trip_id", tripId);
+
+	if (spotId) {
+		query = query.eq("spot_id", spotId);
+	}
+
+	const { data, error } = await query.order("created_at", { ascending: false });
+	return data || [];
+}
+
+// 新增費用 (預設金額為 0)
+export async function addExpense(expenseData: {
+	trip_id: string;
+	spot_id?: string;
+	title: string;
+	amount: number;
+	payer_id: string;
+	involved_members: string[];
+}) {
+	const supabase = await createSupabaseServerClient();
+	const { error } = await supabase.from("expenses").insert([{
+		...expenseData,
+		amount: expenseData.amount || 0, // 確保預設是 0
+		involved_members: expenseData.involved_members || []
+	}]);
+
+	if (error) throw error;
+	revalidatePath(`/trip/${expenseData.trip_id}`);
+}
+export async function addTripLevelExpense(data: {
+	trip_id: string;
+	day: number;
+	title: string;
+	amount: number;
+	currency: string;
+	payer_id: string;
+	involved_members: string[];
+	cost_breakdown?: any;
+}) {
+	const supabase = await createSupabaseServerClient();
+
+	const { error } = await supabase.from("expenses").insert([{
+		...data,
+		amount: Number(data.amount) || 0,
+		cost_breakdown: data.cost_breakdown || {}
+	}]);
+
+	if (error) throw error;
+	revalidatePath(`/trip/${data.trip_id}`);
+}
+export async function getAllTripExpenses(tripId: string) {
+	const supabase = await createSupabaseServerClient();
+	const { data, error } = await supabase
+		.from("expenses")
+		.select("*")
+		.eq("trip_id", tripId)
+		.order("day", { ascending: true }); // 按天數排好
+
+	if (error) return [];
+	return data;
+}
+// 刪除費用
+export async function deleteExpense(expenseId: string, tripId: string) {
+	const supabase = await createSupabaseServerClient();
+	const { error } = await supabase
+		.from("expenses")
+		.delete()
+		.eq("id", expenseId);
+	if (error) {
+		console.error("❌ 刪除費用失敗:", error.message);
+		throw error;
+	}
 	revalidatePath(`/trip/${tripId}`);
 }

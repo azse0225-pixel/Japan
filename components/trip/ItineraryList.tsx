@@ -14,11 +14,12 @@ import {
   updateSpotTime,
   deleteSpecificDay,
   updateSpotTransportMode,
-  updateSpotCost,
   getTripMembers,
   addTripMember,
   deleteTripMember,
-  updateSpotSplit,
+  updateSpotExpenseList,
+  getExpenses,
+  deleteExpense, // 👈 補上這一個！
 } from "@/lib/actions/trip-actions";
 
 import { useJsApiLoader } from "@react-google-maps/api";
@@ -31,12 +32,12 @@ import SpotItem from "./SpotItem";
 import AddSpotForm from "./AddSpotForm";
 import MapComponent from "./MapComponent";
 import ChecklistModal from "./ChecklistModal";
-import MemberModal from "./MemberModal";
 import DeleteConfirmModal from "./DeleteConfirmModal";
 import { ExportTemplate } from "./ExportTemplate";
-
+import { ExpenseModal } from "./ExpenseModal"; // ✨ 匯入組件
+import { TripSummaryModal } from "./TripSummaryModal";
 const libraries: ("places" | "geometry")[] = ["places", "geometry"];
-
+import { MemberManagementModal } from "./MemberManagementModal";
 export default function ItineraryList({ tripId }: { tripId: string }) {
   // --- 狀態管理 ---
   const [spots, setSpots] = useState<any[]>([]);
@@ -44,10 +45,13 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
   const [members, setMembers] = useState<any[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
+  const [allTripExpenses, setAllTripExpenses] = useState<any[]>([]);
   const [pendingLocation, setPendingLocation] = useState<{
     lat: number;
     lng: number;
   } | null>(null);
+  const [isTripSummaryOpen, setIsTripSummaryOpen] = useState(false);
   const [focusedSpot, setFocusedSpot] = useState<any>(null);
   const [selectedDay, setSelectedDay] = useState(1);
   const [days, setDays] = useState<number[]>([]);
@@ -55,14 +59,12 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [targetDeleteDay, setTargetDeleteDay] = useState<number | null>(null);
   const [isChecklistOpen, setIsChecklistOpen] = useState(false);
-  const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
-  const [newMemberName, setNewMemberName] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("spot");
   const [newSpotTime, setNewSpotTime] = useState("09:00");
   const [durations, setDurations] = useState<{ [key: string]: any }>({});
   const [tripData, setTripData] = useState<any>(null);
   const mapRef = useRef<HTMLDivElement>(null);
-
+  const [expenseModalSpot, setExpenseModalSpot] = useState<any>(null);
   const scrollToMap = () => {
     // 偵測是否為行動裝置 (Tailwind 的 lg 是 1024px)
     if (window.innerWidth < 1024 && mapRef.current) {
@@ -79,22 +81,22 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     language: "zh-TW",
   });
 
-  // --- 資料初始化與實時同步 ---
+  // 2. 修改 initLoad 函式
   const initLoad = async (resetFocus = true, showLoadingAnimation = false) => {
     if (resetFocus) setFocusedSpot(null);
-
-    // 🚀 只有在初次載入或手動重新整理時才顯示轉圈圈
     if (showLoadingAnimation) setIsLoading(true);
 
     try {
       const localMemberId = localStorage.getItem(`me_in_${tripId}`);
 
-      // ✨ 修正後的 Promise.all：一次抓取 4 個資料
-      const [tData, mData, sData, allSData] = await Promise.all([
+      // ✨ 這裡新增 getExpenses(tripId)
+      // 注意：確認你的 trip-actions.ts 裡有這個匯出 (你上次貼的代碼裡有)
+      const [tData, mData, sData, allSData, allEData] = await Promise.all([
         getTripData(tripId),
         getTripMembers(tripId, localMemberId || undefined),
-        getSpots(tripId, selectedDay), // 抓當天
-        getSpots(tripId), // 抓全部 (不傳天數，需後端支援)
+        getSpots(tripId, selectedDay),
+        getSpots(tripId),
+        getExpenses(tripId), // 🚀 新增：抓取該行程所有費用 (包含雜項)
       ]);
 
       if (tData) {
@@ -102,15 +104,15 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
         setDays(Array.from({ length: tData.days_count || 1 }, (_, i) => i + 1));
       }
       setMembers(mData || []);
-
-      // 更新當天行程點 (排序過後)
-      const sortedDaily = (sData || []).sort((a: any, b: any) =>
-        (a.time || "99:99").localeCompare(b.time || "99:99")
+      setSpots(
+        (sData || []).sort((a: any, b: any) =>
+          (a.time || "99:99").localeCompare(b.time || "99:99")
+        )
       );
-      setSpots(sortedDaily);
-
-      // ✨ 更新全行程點 (用於分帳)
       setAllSpots(allSData || []);
+
+      // ✨ 存入所有費用
+      setAllTripExpenses(allEData || []);
     } catch (e) {
       console.error("初始化載入失敗:", e);
     } finally {
@@ -119,34 +121,20 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
   };
 
   useEffect(() => {
-    // 1. 當切換天數 (selectedDay) 或初次進入頁面時
-    // 我們執行 initLoad(重設焦點, 顯示載入動畫)
     initLoad(true, true);
 
     const channel = supabase
       .channel(`trip-${tripId}`)
+      // ... 原有的 spots 和 members 監聽 ...
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
-          table: "spots",
+          table: "expenses",
           filter: `trip_id=eq.${tripId}`,
         },
-        // 2. 當 Realtime 偵測到資料變動時
-        // 執行 initLoad(不重設焦點, 不顯示動畫) -> 達成無感同步 ✨
-        () => initLoad(false, false)
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "trip_members",
-          filter: `trip_id=eq.${tripId}`,
-        },
-        // 3. 成員變動時同樣保持靜默同步
-        () => initLoad(false, false)
+        () => initLoad(false, false) // 🚀 費用變動時，無感刷新資料
       )
       .subscribe();
 
@@ -254,38 +242,41 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     saveTimerRef.current[id] = setTimeout(() => updateSpotNote(id, note), 800);
   };
 
-  // --- 結算邏輯 ---
-  // 🔍 找到 settlement 區塊，修改讀取的陣列
+  // --- 結算邏輯 (修正版) ---
   const settlement = useMemo(() => {
     const balances: any = {};
+    // 1. 初始化每個成員的餘額
     members.forEach((m) => (balances[m.id] = { JPY: 0, TWD: 0 }));
 
-    // 🚀 關鍵：這裡必須改成 allSpots，分帳才會累計每一天！
-    allSpots.forEach((s) => {
-      const totalCost = Number(s.actual_cost || 0);
-      const inv = s.involved_members || [];
-      const curr = s.currency || "JPY";
-      const breakdown = s.cost_breakdown || {};
+    // 2. 改用 allTripExpenses 來計算，這樣才包含「雜項」
+    allTripExpenses.forEach((exp: any) => {
+      const amount = Number(exp.amount) || 0;
+      const inv = exp.involved_members || [];
+      const curr = exp.currency || "JPY";
+      const payerId = exp.payer_id;
+      const breakdown = exp.cost_breakdown || {};
 
-      if (totalCost > 0 && inv.length > 0) {
+      if (amount > 0 && inv.length > 0) {
+        // A. 參與人扣款
         inv.forEach((mId: string) => {
           if (balances[mId]) {
             const memberCost =
               breakdown[mId] !== undefined
                 ? Number(breakdown[mId])
-                : totalCost / inv.length;
+                : amount / inv.length;
             balances[mId][curr] -= memberCost;
           }
         });
 
-        if (s.payer_id && balances[s.payer_id]) {
-          balances[s.payer_id][curr] += totalCost;
+        // B. 墊付人加回
+        if (payerId && balances[payerId]) {
+          balances[payerId][curr] += amount;
         }
       }
     });
 
     return members.map((m) => ({ ...m, balances: balances[m.id] }));
-  }, [allSpots, members]); // ✨ 相依項也要改成 allSpots
+  }, [allTripExpenses, members]); // 🚀 依賴項改為 allTripExpenses
 
   return (
     <div className="w-full pb-20 bg-slate-50/50 min-h-screen">
@@ -342,6 +333,12 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                 <h2 className="text-xl font-black text-slate-800">今日計畫</h2>
                 <div className="flex gap-2">
                   <button
+                    onClick={() => setIsMemberModalOpen(true)}
+                    className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-xs font-black hover:bg-emerald-100 transition-colors"
+                  >
+                    👥 成員管理
+                  </button>
+                  <button
                     id="download-btn"
                     onClick={handleDownload}
                     className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-xs font-black hover:bg-slate-200 transition-colors"
@@ -349,10 +346,10 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                     📥 下載
                   </button>
                   <button
-                    onClick={() => setIsMemberModalOpen(true)}
+                    onClick={() => setIsTripSummaryOpen(true)} // 🚀 點擊開啟全行程報表
                     className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-black hover:bg-indigo-100 transition-colors"
                   >
-                    📊 分帳
+                    📊 分帳總計
                   </button>
                 </div>
               </div>
@@ -425,6 +422,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                           // 2. 悄悄存檔，不跑 .then(() => initLoad(false))
                           updateSpotCategory(id, cat);
                         }}
+                        onOpenExpenseModal={(s) => setExpenseModalSpot(s)} // ✨ 開啟彈窗
                         onTimeChange={(id, t) => {
                           // 1. 先改本地狀態並重新排序（時間變了排序會動）
                           setSpots((prev) => {
@@ -439,39 +437,6 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                           });
                           // 2. 悄悄存檔
                           updateSpotTime(id, t);
-                        }}
-                        onCostChange={(id, est, act, curr) => {
-                          // 🚀 1. 樂觀更新：直接改掉畫面的數字
-                          setSpots((prev) =>
-                            prev.map((s) =>
-                              s.id === id
-                                ? {
-                                    ...s,
-                                    estimated_cost: est,
-                                    actual_cost: act,
-                                    currency: curr,
-                                  }
-                                : s
-                            )
-                          );
-
-                          // 🚀 2. 執行存檔：去掉 .then(() => initLoad(false))
-                          updateSpotCost(id, est, act, curr);
-                        }}
-                        onSplitChange={(id, p, inv, breakdown) => {
-                          setSpots((prev) =>
-                            prev.map((s) =>
-                              s.id === id
-                                ? {
-                                    ...s,
-                                    payer_id: p,
-                                    involved_members: inv,
-                                    cost_breakdown: breakdown,
-                                  }
-                                : s
-                            )
-                          );
-                          updateSpotSplit(id, p, inv, breakdown);
                         }}
                         onAttachmentChange={() => {
                           // 附件比較特殊（涉及檔案網址），建議還是 reload 一下，
@@ -541,24 +506,6 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
       </div>
 
       {/* 各種彈窗 */}
-      <MemberModal
-        isOpen={isMemberModalOpen}
-        onClose={() => setIsMemberModalOpen(false)}
-        members={members}
-        settlement={settlement}
-        newMemberName={newMemberName}
-        setNewMemberName={setNewMemberName}
-        onAddMember={async () => {
-          if (newMemberName) {
-            await addTripMember(tripId, newMemberName);
-            initLoad();
-            setNewMemberName("");
-          }
-        }}
-        onDeleteMember={(id) =>
-          deleteTripMember(id, tripId).then(() => initLoad())
-        }
-      />
 
       <DeleteConfirmModal
         isOpen={isModalOpen}
@@ -575,6 +522,42 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
         tripId={tripId}
         isOpen={isChecklistOpen}
         onClose={() => setIsChecklistOpen(false)}
+      />
+      {/* ✨ 這裡是新加入的費用管理彈窗 ✨ */}
+      {expenseModalSpot && (
+        <ExpenseModal
+          isOpen={!!expenseModalSpot}
+          spot={expenseModalSpot}
+          members={members}
+          onClose={() => setExpenseModalSpot(null)}
+          onSave={(id: string, list: any[]) => {
+            // 傳入 tripId, spotId (id), list
+            updateSpotExpenseList(tripId, id, list)
+              .then(() => initLoad(false, false))
+              .catch((e) => alert("儲存失敗：" + e.message));
+          }}
+        />
+      )}
+      {/* ✨ 全行程總計彈窗 */}
+      <TripSummaryModal
+        isOpen={isTripSummaryOpen}
+        onClose={() => setIsTripSummaryOpen(false)}
+        allSpots={allSpots}
+        members={members}
+        settlement={settlement}
+        tripId={tripId}
+        daysCount={days.length}
+        onRefresh={() => initLoad(false, false)}
+        allTripExpenses={allTripExpenses} // 🚀 傳入這個新抓到的所有費用陣列
+        deleteExpense={deleteExpense} // 🚀 記得傳入刪除 function
+      />
+      {/* 成員管理 */}
+      <MemberManagementModal
+        isOpen={isMemberModalOpen}
+        onClose={() => setIsMemberModalOpen(false)}
+        tripId={tripId}
+        members={members}
+        onRefresh={() => initLoad(false, false)} // 這裡用你原本寫好的 initLoad
       />
     </div>
   );
