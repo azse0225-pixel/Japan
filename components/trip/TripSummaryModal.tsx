@@ -1,4 +1,4 @@
-// components/trip/TripSummaryModal.tsx
+// components/trip/TripDetailHeader.tsx
 
 "use client";
 
@@ -195,7 +195,7 @@ export function TripSummaryModal({
                       onChange={(e) =>
                         setNewExp({ ...newExp, day: Number(e.target.value) })
                       }
-                      className="bg-white p-2.5 sm:p-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold shadow-sm outline-none"
+                      className="bg-white p-2.5 sm:p-3 rounded-xl sm:rounded-2xl text-xs sm:text-base font-bold shadow-sm outline-none"
                     >
                       {Array.from({ length: daysCount }, (_, i) => i + 1).map(
                         (d) => (
@@ -215,7 +215,7 @@ export function TripSummaryModal({
                       onChange={(e) =>
                         setNewExp({ ...newExp, currency: e.target.value })
                       }
-                      className="bg-white p-2.5 sm:p-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold text-indigo-600 shadow-sm outline-none"
+                      className="bg-white p-2.5 sm:p-3 rounded-xl sm:rounded-2xl text-xs sm:text-base font-bold text-indigo-600 shadow-sm outline-none"
                     >
                       <option value="JPY">JPY (¥)</option>
                       <option value="TWD">TWD ($)</option>
@@ -309,7 +309,7 @@ export function TripSummaryModal({
                       onChange={(e) =>
                         setNewExp({ ...newExp, payer_id: e.target.value })
                       }
-                      className="flex-1 sm:flex-none bg-white px-3 py-1.5 rounded-xl text-[10px] sm:text-xs font-bold shadow-sm outline-none"
+                      className="flex-1 sm:flex-none bg-white px-3 py-1.5 rounded-xl text-[10px] sm:text-base font-bold shadow-sm outline-none"
                     >
                       {members.map((m: any) => (
                         <option key={m.id} value={m.id}>

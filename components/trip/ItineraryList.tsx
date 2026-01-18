@@ -328,7 +328,10 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
         <div className="flex flex-col lg:flex-row gap-6">
           {/* 左側：行程清單 */}
           <div className="flex-1">
-            <div className="bg-white/80 backdrop-blur-md p-6 sm:p-8 rounded-[40px] shadow-xl border border-white">
+            <div
+              className="bg-white/80 backdrop-blur-md p-6 sm:p-8 r
+            ounded-[40px] shadow-xl border border-white"
+            >
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-black text-slate-800">今日計畫</h2>
                 <div className="flex gap-2">
@@ -349,7 +352,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                     onClick={() => setIsTripSummaryOpen(true)} // 🚀 點擊開啟全行程報表
                     className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-black hover:bg-indigo-100 transition-colors"
                   >
-                    📊 分帳總計
+                    📊 分帳
                   </button>
                 </div>
               </div>

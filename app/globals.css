@@ -24,3 +24,24 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* 🚀 解決 iOS Safari 自動放大問題 */
+@supports (-webkit-touch-callout: none) {
+
+  /* 僅針對觸控裝置（主要是 iPhone/iPad） */
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* 或者更精確地只在手機版寬度時生效 */
+@media screen and (max-width: 768px) {
+
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
