@@ -79,7 +79,7 @@ export function MemberManagementModal({
               value={newMemberName}
               onChange={(e) => setNewMemberName(e.target.value)}
               placeholder="輸入成員暱稱..."
-              className="flex-1 bg-slate-100 p-3 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all"
+              className=" text-slate-700 flex-1 bg-slate-100 p-3 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all"
             />
             <button
               onClick={handleAddMember}

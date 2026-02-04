@@ -185,7 +185,7 @@ export default function UnscheduledSpotsModal({
                 }}
                 placeholder="搜尋想去的景點..."
                 className={cn(
-                  "w-full px-5 py-3 rounded-2xl border-2 bg-white shadow-sm outline-none font-bold text-sm transition-all",
+                  "w-full px-5 py-3 rounded-2xl border-2 bg-white shadow-sm outline-none font-bold text-sm transition-all text-slate-900",
                   pendingLocation
                     ? "border-emerald-400 ring-2 ring-emerald-50"
                     : "border-white focus:border-amber-400",

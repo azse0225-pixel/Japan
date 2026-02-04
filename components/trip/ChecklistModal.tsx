@@ -133,7 +133,7 @@ export default function ChecklistModal({
           </div>
           <div className="w-full h-2 bg-orange-100 rounded-full overflow-hidden">
             <div
-              className="h-full bg-orange-500 transition-all duration-500"
+              className="h-full bg-orange-500 transition-all duration-500 "
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -157,7 +157,7 @@ export default function ChecklistModal({
               <div
                 key={item.id}
                 className={cn(
-                  "group flex items-center gap-4 p-4 rounded-[24px] transition-all border",
+                  "group flex items-center gap-4 p-4 rounded-[24px] transition-all border text-slate-900",
                   item.is_checked
                     ? "bg-slate-50 border-transparent opacity-60"
                     : "bg-white border-slate-100 shadow-sm",

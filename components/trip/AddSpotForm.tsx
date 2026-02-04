@@ -63,7 +63,7 @@ export default function AddSpotForm({
           <input
             type="text"
             value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)} // 🚀 關鍵：不再這裡清除座標
+            onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && onAddSpot()}
             placeholder="搜尋地點或自訂名稱..."
             className={cn(
@@ -81,7 +81,7 @@ export default function AddSpotForm({
                 <button
                   key={s.place_id}
                   onClick={() => onSelectSuggestion(s.place_id, s.description)}
-                  className="w-full px-5 py-4 text-left hover:bg-orange-50 text-sm font-bold border-b border-slate-50 last:border-none flex items-center gap-3"
+                  className="w-full px-5 py-4 text-left hover:bg-orange-50 text-sm font-bold border-b border-slate-50 last:border-none flex items-center gap-3 text-slate-900"
                 >
                   <span className="text-orange-400">📍</span>
                   {s.description}

@@ -589,3 +589,23 @@ export async function moveSpotToDay(spotId: string, targetDay: number, tripId: s
 	if (error) throw error;
 	revalidatePath(`/trip/${tripId}`);
 }
+
+/**
+ * 更新景點的超連結網址
+ * @param spotId 景點 ID
+ * @param link_url 連結網址 (String)
+ */
+export async function updateSpotLinks(spotId: string, links: any[]) {
+	try {
+		const supabase = await createSupabaseServerClient();
+		const { error } = await supabase
+			.from("spots")
+			.update({ links: links })
+			.eq("id", spotId);
+		if (error) throw error;
+		return { success: true };
+	} catch (error) {
+		console.error("Server Action Error (updateSpotLink):", error);
+		throw error;
+	}
+}

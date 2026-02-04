@@ -15,17 +15,16 @@ import {
   deleteSpecificDay,
   updateSpotTransportMode,
   getTripMembers,
-  addTripMember,
-  deleteTripMember,
   updateSpotExpenseList,
   getExpenses,
-  deleteExpense, // 👈 補上這一個！
+  deleteExpense,
+  updateSpotLinks,
 } from "@/lib/actions/trip-actions";
 
 import { useJsApiLoader } from "@react-google-maps/api";
 import { toPng } from "html-to-image";
 
-// ✨ 匯入拆分好的組件
+// 匯入拆分好的組件
 import TripDetailHeader from "./TripDetailHeader";
 import DayTabs from "./DayTabs";
 import SpotItem from "./SpotItem";
@@ -34,26 +33,26 @@ import MapComponent from "./MapComponent";
 import ChecklistModal from "./ChecklistModal";
 import DeleteConfirmModal from "./DeleteConfirmModal";
 import { ExportTemplate } from "./ExportTemplate";
-import { ExpenseModal } from "./ExpenseModal"; // ✨ 匯入組件
+import { ExpenseModal } from "./ExpenseModal"; // 匯入組件
 import { TripSummaryModal } from "./TripSummaryModal";
 const libraries: ("places" | "geometry")[] = ["places", "geometry"];
 import { MemberManagementModal } from "./MemberManagementModal";
-import UnscheduledSpotsModal from "./UnscheduledSpotsModal"; // 🚀 1. 新增這一行
+import UnscheduledSpotsModal from "./UnscheduledSpotsModal";
 export default function ItineraryList({ tripId }: { tripId: string }) {
   // --- 狀態管理 ---
   const [spots, setSpots] = useState<any[]>([]);
-  const [allSpots, setAllSpots] = useState<any[]>([]); // ✨ 新增這行，存全行程資料
+  const [allSpots, setAllSpots] = useState<any[]>([]); // 新增這行，存全行程資料
   const [members, setMembers] = useState<any[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
   const [allTripExpenses, setAllTripExpenses] = useState<any[]>([]);
-  const [isPocketListOpen, setIsPocketListOpen] = useState(false); // 🚀 2. 新增控制開關
+  const [isPocketListOpen, setIsPocketListOpen] = useState(false); //  2. 新增控制開關
   const [pendingLocation, setPendingLocation] = useState<{
     lat: number;
     lng: number;
   } | null>(null);
-  const [pendingPlaceId, setPendingPlaceId] = useState<string | null>(null); // 🚀 新增這一行
+  const [pendingPlaceId, setPendingPlaceId] = useState<string | null>(null); //  新增這一行
   const [isTripSummaryOpen, setIsTripSummaryOpen] = useState(false);
   const [focusedSpot, setFocusedSpot] = useState<any>(null);
   const [selectedDay, setSelectedDay] = useState(1);
@@ -92,14 +91,14 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     try {
       const localMemberId = localStorage.getItem(`me_in_${tripId}`);
 
-      // ✨ 這裡新增 getExpenses(tripId)
+      // 這裡新增 getExpenses(tripId)
       // 注意：確認你的 trip-actions.ts 裡有這個匯出 (你上次貼的代碼裡有)
       const [tData, mData, sData, allSData, allEData] = await Promise.all([
         getTripData(tripId),
         getTripMembers(tripId, localMemberId || undefined),
         getSpots(tripId, selectedDay),
         getSpots(tripId),
-        getExpenses(tripId), // 🚀 新增：抓取該行程所有費用 (包含雜項)
+        getExpenses(tripId), //  新增：抓取該行程所有費用 (包含雜項)
       ]);
 
       if (tData) {
@@ -114,7 +113,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
       );
       setAllSpots(allSData || []);
 
-      // ✨ 存入所有費用
+      // 存入所有費用
       setAllTripExpenses(allEData || []);
     } catch (e) {
       console.error("初始化載入失敗:", e);
@@ -137,7 +136,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
           table: "expenses",
           filter: `trip_id=eq.${tripId}`,
         },
-        () => initLoad(false, false), // 🚀 費用變動時，無感刷新資料
+        () => initLoad(false, false), //  費用變動時，無感刷新資料
       )
       .subscribe();
 
@@ -166,7 +165,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     }, 300);
 
     return () => clearTimeout(timeoutId);
-    // 🚀 記得把 pendingLocation 加入依賴陣列，這樣它的狀態改變時才會重新觸發判斷
+    //  記得把 pendingLocation 加入依賴陣列，這樣它的狀態改變時才會重新觸發判斷
   }, [inputValue, isLoaded, tripData?.country_code, pendingLocation]);
 
   // --- 下載圖片邏輯 ---
@@ -226,13 +225,13 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
           selectedDay,
           lat,
           lng,
-          pendingPlaceId || "", // 🚀 傳入 place_id
+          pendingPlaceId || "", //  傳入 place_id
           selectedCategory,
           newSpotTime,
         );
         setInputValue("");
         setPendingLocation(null);
-        setPendingPlaceId(null); // 🚀 儲存成功後清空
+        setPendingPlaceId(null); //  儲存成功後清空
         initLoad(false);
       } else {
         alert("找不到地點座標");
@@ -249,6 +248,20 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
     if (saveTimerRef.current[id]) clearTimeout(saveTimerRef.current[id]);
     saveTimerRef.current[id] = setTimeout(() => updateSpotNote(id, note), 800);
   };
+  const handleLinkChange = (id: string, linksArray: any[]) => {
+    // 1. 立即更新本地 UI 狀態
+    setSpots((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, links: linksArray } : s)),
+    );
+    // 2. 防抖存檔：使用者停下動作 800ms 後才真正更新資料庫
+    if (saveTimerRef.current[`link-${id}`]) {
+      clearTimeout(saveTimerRef.current[`link-${id}`]);
+    }
+
+    saveTimerRef.current[`link-${id}`] = setTimeout(async () => {
+      await updateSpotLinks(id, linksArray);
+    }, 800);
+  };
   // --- 結算邏輯 (加入結清過濾版) ---
   const settlement = useMemo(() => {
     const balances: any = {};
@@ -257,7 +270,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
 
     // 2. 遍歷所有費用
     allTripExpenses.forEach((exp: any) => {
-      // 🚀 關鍵修改：如果這筆費用已經勾選「已結清」，直接跳過不計入個人債務
+      //  關鍵修改：如果這筆費用已經勾選「已結清」，直接跳過不計入個人債務
       if (exp.is_settled) return;
 
       const amount = Number(exp.amount) || 0;
@@ -299,18 +312,18 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
         startDate={tripData?.start_date}
       />
 
-      {/* ✨ 頂部導覽列：含日期顯示 ✨ */}
+      {/* 頂部導覽列：含日期顯示 */}
       <TripDetailHeader
         title={tripData?.title}
         startDate={tripData?.start_date}
         selectedDay={selectedDay}
         onBack={() => window.history.back()}
         onOpenChecklist={() => setIsChecklistOpen(true)}
-        onOpenPocketList={() => setIsPocketListOpen(true)} // 🚀 這裡就是連動點！
+        onOpenPocketList={() => setIsPocketListOpen(true)} //  這裡就是連動點！
       />
 
       <div className="max-w-[1600px] mx-auto px-4">
-        {/* ✨ 天數切換區：含日期小標籤 ✨ */}
+        {/* 天數切換區：含日期小標籤 */}
         <DayTabs
           days={days}
           selectedDay={selectedDay}
@@ -346,16 +359,15 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-black text-slate-800">今日計畫</h2>
                 <div className="flex gap-1.5 sm:gap-2">
-                  {/* 🚀 手機版間距縮小到 1.5 */}
-                  {/* 👥 成員按鈕 */}
+                  {/* 成員按鈕 */}
                   <button
                     onClick={() => setIsMemberModalOpen(true)}
                     className="px-2.5 py-1.5 sm:px-4 sm:py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] sm:text-xs font-black hover:bg-emerald-100 transition-colors flex items-center gap-1 shrink-0"
                   >
                     <span>👥</span>
-                    <span>成員</span> {/* 🚀 在極小螢幕隱藏文字只留圖示 */}
+                    <span>成員</span> {/*  在極小螢幕隱藏文字只留圖示 */}
                   </button>
-                  {/* 📥 下載按鈕 */}
+                  {/* 下載按鈕 */}
                   <button
                     id="download-btn"
                     onClick={handleDownload}
@@ -364,7 +376,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                     <span>📥</span>
                     <span>下載</span>
                   </button>
-                  {/* 📊 分帳按鈕 */}
+                  {/* 分帳按鈕 */}
                   <button
                     onClick={() => setIsTripSummaryOpen(true)}
                     className="px-2.5 py-1.5 sm:px-4 sm:py-2 bg-indigo-50 text-indigo-600 rounded-xl text-[10px] sm:text-xs font-black hover:bg-indigo-100 transition-colors flex items-center gap-1 shrink-0"
@@ -433,6 +445,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                           });
                         }}
                         onNoteChange={handleNoteChange} // 這個妳已經寫好本地更新了，很棒！
+                        onLinkChange={handleLinkChange} //  2. 傳入這個新的 Handler
                         onCategoryChange={(id, cat) => {
                           // 1. 先改本地狀態
                           setSpots((prev) =>
@@ -443,7 +456,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                           // 2. 悄悄存檔，不跑 .then(() => initLoad(false))
                           updateSpotCategory(id, cat);
                         }}
-                        onOpenExpenseModal={(s) => setExpenseModalSpot(s)} // ✨ 開啟彈窗
+                        onOpenExpenseModal={(s) => setExpenseModalSpot(s)} // 開啟彈窗
                         onTimeChange={(id, t) => {
                           // 1. 先改本地狀態並重新排序（時間變了排序會動）
                           setSpots((prev) => {
@@ -540,7 +553,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
         }}
       />
 
-      {/* ✨ 這裡是新加入的費用管理彈窗 ✨ */}
+      {/* 這裡是新加入的費用管理彈窗 */}
       {expenseModalSpot && (
         <ExpenseModal
           isOpen={!!expenseModalSpot}
@@ -555,7 +568,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
           }}
         />
       )}
-      {/* ✨ 全行程總計彈窗 */}
+      {/* 全行程總計彈窗 */}
       <TripSummaryModal
         isOpen={isTripSummaryOpen}
         onClose={() => setIsTripSummaryOpen(false)}
@@ -565,8 +578,8 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
         tripId={tripId}
         daysCount={days.length}
         onRefresh={() => initLoad(false, false)}
-        allTripExpenses={allTripExpenses} // 🚀 傳入這個新抓到的所有費用陣列
-        deleteExpense={deleteExpense} // 🚀 記得傳入刪除 function
+        allTripExpenses={allTripExpenses} //  傳入這個新抓到的所有費用陣列
+        deleteExpense={deleteExpense} //  記得傳入刪除 function
       />
       {/* 成員管理 */}
       <MemberManagementModal
@@ -580,7 +593,7 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
         tripId={tripId}
         isOpen={isChecklistOpen}
         onClose={() => setIsChecklistOpen(false)}
-        members={members} // 🚀 記得傳這個！
+        members={members} //  記得傳這個！
       />
       {/*  景點備忘錄彈窗 */}
       <UnscheduledSpotsModal

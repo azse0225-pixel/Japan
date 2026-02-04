@@ -218,7 +218,7 @@ export function TripSummaryModal({
                       onChange={(e) =>
                         setNewExp({ ...newExp, day: Number(e.target.value) })
                       }
-                      className="bg-white p-2.5 sm:p-3 rounded-xl sm:rounded-2xl text-xs sm:text-base font-bold shadow-sm outline-none"
+                      className="bg-white p-2.5 sm:p-3 rounded-xl sm:rounded-2xl text-xs sm:text-base font-bold shadow-sm outline-none text-slate-700"
                     >
                       {Array.from({ length: daysCount }, (_, i) => i + 1).map(
                         (d) => (
@@ -256,7 +256,7 @@ export function TripSummaryModal({
                         setNewExp({ ...newExp, description: e.target.value })
                       }
                       onFocus={(e) => e.target.select()}
-                      className="bg-white p-2.5 sm:p-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold shadow-sm outline-none"
+                      className="bg-white p-2.5 sm:p-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold shadow-sm outline-none text-slate-700"
                     />
                   </div>
                   {/* 🚀 找到這個 label，然後替換掉整個 div */}
@@ -382,7 +382,7 @@ export function TripSummaryModal({
                       onChange={(e) =>
                         setNewExp({ ...newExp, payer_id: e.target.value })
                       }
-                      className="flex-1 sm:flex-none bg-white px-3 py-1.5 rounded-xl text-[10px] sm:text-base font-bold shadow-sm outline-none"
+                      className="flex-1 sm:flex-none bg-white px-3 py-1.5 rounded-xl text-[10px] sm:text-base font-bold shadow-sm outline-none text-slate-700"
                     >
                       {members.map((m: any) => (
                         <option key={m.id} value={m.id}>

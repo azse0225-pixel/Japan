@@ -16,6 +16,7 @@ interface SpotItemProps {
   onNoteChange: (id: string, note: string) => void;
   onCategoryChange: (id: string, cat: string) => void;
   onTimeChange: (id: string, time: string) => void;
+  onLinkChange: (id: string, links: any[]) => void;
   onSelect: () => void;
   onOpenExpenseModal: (spot: any) => void;
   onAttachmentChange: () => void;
@@ -28,6 +29,7 @@ export default function SpotItem({
   onNoteChange,
   onCategoryChange,
   onTimeChange,
+  onLinkChange,
   onSelect,
   onOpenExpenseModal,
   onAttachmentChange,
@@ -35,14 +37,16 @@ export default function SpotItem({
   const [showCatMenu, setShowCatMenu] = useState(false);
   const [showTickets, setShowTickets] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false); // 🚀 新增：控制刪除確認
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [localNote, setLocalNote] = useState(spot.note || "");
+  const [showLinkSection, setShowLinkSection] = useState(false);
+  const [newLinkTitle, setNewLinkTitle] = useState("");
+  const [newLinkUrl, setNewLinkUrl] = useState("");
   const debounceTimer = useRef<{ [key: string]: NodeJS.Timeout }>({});
-
+  const links = spot.links || []; // 確保是陣列
   useEffect(() => {
     setLocalNote(spot.note || "");
   }, [spot.note]);
-
   const debounceSave = (key: string, callback: () => void, delay = 800) => {
     if (debounceTimer.current[key]) clearTimeout(debounceTimer.current[key]);
     debounceTimer.current[key] = setTimeout(callback, delay);
@@ -54,7 +58,7 @@ export default function SpotItem({
   const totalAct =
     spot.expense_list?.reduce(
       (sum: number, exp: any) => sum + (Number(exp.amount) || 0),
-      0
+      0,
     ) || 0;
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -72,15 +76,28 @@ export default function SpotItem({
     }
   };
   const displayCurrency = spot.expense_list?.[0]?.currency || "JPY";
+  // 新增/修改連結的邏輯
+  const handleAddLink = () => {
+    if (!newLinkTitle.trim() || !newLinkUrl.trim()) return;
+    const updatedLinks = [...links, { title: newLinkTitle, url: newLinkUrl }];
+    onLinkChange(spot.id, updatedLinks);
+    setNewLinkTitle(""); // 清空輸入框
+    setNewLinkUrl("");
+  };
+
+  const handleDeleteLink = (index: number) => {
+    const updatedLinks = links.filter((_: any, i: number) => i !== index);
+    onLinkChange(spot.id, updatedLinks);
+  };
   return (
     <div
       onClick={onSelect}
       className={cn(
         "relative flex flex-col p-4 bg-white rounded-[24px] border border-slate-100 shadow-sm hover:border-orange-200 transition-all group cursor-pointer",
-        showCatMenu || isConfirmingDelete ? "z-50" : "z-10"
+        showCatMenu || isConfirmingDelete ? "z-50" : "z-10",
       )}
     >
-      {/* 🚀 刪除確認覆蓋層 (只有在 isConfirmingDelete 為 true 時顯示) */}
+      {/* 刪除確認覆蓋層 (只有在 isConfirmingDelete 為 true 時顯示) */}
       {isConfirmingDelete && (
         <div
           className="absolute inset-0 z-[60] bg-white/90 backdrop-blur-sm rounded-[24px] flex flex-col items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-200"
@@ -113,7 +130,7 @@ export default function SpotItem({
         </div>
       )}
 
-      {/* 🚀 第一部分：行程標題列 */}
+      {/* 第一部分：行程標題列 */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-col gap-2 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
@@ -133,7 +150,7 @@ export default function SpotItem({
                 }}
                 className={cn(
                   "px-2 py-0.5 rounded-full text-[9px] font-black shadow-sm transition-transform active:scale-95 shrink-0",
-                  currentCat.color
+                  currentCat.color,
                 )}
               >
                 {currentCat.icon} {currentCat.label}
@@ -143,7 +160,7 @@ export default function SpotItem({
                 href={
                   spot.place_id
                     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                        spot.name
+                        spot.name,
                       )}&query_place_id=${spot.place_id}`
                     : `https://www.google.com/maps/search/?api=1&query=${spot.lat},${spot.lng}`
                 }
@@ -181,11 +198,11 @@ export default function SpotItem({
           </span>
         </div>
 
-        {/* 🚀 刪除按鈕 (✕)：修改為先開啟確認介面 */}
+        {/* 刪除按鈕 (✕)：修改為先開啟確認介面 */}
         <button
           onClick={(e) => {
             e.stopPropagation();
-            setIsConfirmingDelete(true); // 🚀 點擊後不直接刪除，改為顯示確認框
+            setIsConfirmingDelete(true); //  點擊後不直接刪除，改為顯示確認框
           }}
           className="p-1 -mr-1 text-slate-300 hover:text-red-500 transition-colors shrink-0"
         >
@@ -193,7 +210,7 @@ export default function SpotItem({
         </button>
       </div>
 
-      {/* 🚀 第二部分：功能圖標與備註 */}
+      {/* 第二部分：功能圖標與備註 */}
       <div className="mt-3 flex gap-3 items-center">
         <div className="flex gap-1.5">
           <button
@@ -205,7 +222,7 @@ export default function SpotItem({
               "w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black transition-all",
               totalAct > 0
                 ? "bg-emerald-500 text-white shadow-md shadow-emerald-100"
-                : "bg-slate-50 text-slate-300 hover:bg-slate-100"
+                : "bg-slate-50 text-slate-300 hover:bg-slate-100",
             )}
           >
             $
@@ -215,12 +232,13 @@ export default function SpotItem({
             onClick={(e) => {
               e.stopPropagation();
               setShowTickets(!showTickets);
+              setShowLinkSection(false);
             }}
             className={cn(
               "w-8 h-8 text-xs rounded-xl flex items-center justify-center font-black relative transition-colors",
               spot.attachments?.length > 0
                 ? "bg-blue-100 text-blue-600"
-                : "bg-slate-50 text-slate-300"
+                : "bg-slate-50 text-slate-300",
             )}
           >
             📎
@@ -229,6 +247,22 @@ export default function SpotItem({
                 {spot.attachments.length}
               </span>
             )}
+          </button>
+          {/* @ 超連結按鈕：修改邏輯 */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowLinkSection(!showLinkSection);
+              setShowTickets(false);
+            }}
+            className={cn(
+              "w-8 h-8 text-xs rounded-xl flex items-center justify-center font-black transition-all ",
+              links.length > 0
+                ? "bg-indigo-500 text-white shadow-md"
+                : "bg-slate-50 text-slate-300",
+            )}
+          >
+            @
           </button>
         </div>
 
@@ -253,7 +287,7 @@ export default function SpotItem({
         )}
       </div>
 
-      {/* 🚀 第三部分：展開區 - 附件預覽 */}
+      {/*  第三部分：展開區 - 附件預覽 */}
       {showTickets && (
         <div
           className="mt-3 bg-blue-50/50 rounded-[24px] p-4 animate-in slide-in-from-top-2 duration-200"
@@ -300,6 +334,86 @@ export default function SpotItem({
                 </button>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+      {/*  第四部分：展開區 - 超連結編輯器 */}
+      {showLinkSection && (
+        <div
+          className="mt-3 bg-indigo-50/50 rounded-[24px] p-5 animate-in slide-in-from-top-2 duration-200"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex justify-between items-center mb-4 px-1">
+            <h4 className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">
+              參考連結清單
+            </h4>
+          </div>
+
+          {/* 1. 顯示已有的連結清單 */}
+          <div className="space-y-2 mb-5">
+            {links.length > 0 ? (
+              links.map((link: any, idx: number) => (
+                <div
+                  key={idx}
+                  className="flex items-center justify-between bg-white p-3 rounded-2xl border border-indigo-100 shadow-sm group hover:border-indigo-300 transition-all"
+                >
+                  <div
+                    className="flex flex-col flex-1 min-w-0 mr-2 cursor-pointer"
+                    onClick={() => {
+                      const url = link.url.startsWith("http")
+                        ? link.url
+                        : `https://${link.url}`;
+                      window.open(url, "_blank");
+                    }}
+                  >
+                    <span className="text-[11px] font-black text-slate-700 truncate">
+                      {link.title}
+                    </span>
+                    <span className="text-[9px] text-indigo-400 truncate hover:underline">
+                      {link.url}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteLink(idx)}
+                    className="w-7 h-7 flex items-center justify-center text-slate-300 hover:text-rose-500 transition-all"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))
+            ) : (
+              <div className="py-4 text-center border-2 border-dashed border-indigo-100 rounded-2xl text-[10px] text-slate-400 font-bold italic">
+                尚未新增任何連結
+              </div>
+            )}
+          </div>
+
+          {/* 2. 新增連結輸入區 (這才是你唯一的輸入區) */}
+          <div className="bg-white/60 p-4 rounded-[20px] border border-indigo-100/50 space-y-3">
+            <input
+              type="text"
+              placeholder="名稱 (例: 官方菜單)"
+              value={newLinkTitle}
+              onChange={(e) => setNewLinkTitle(e.target.value)}
+              className="w-full px-4 py-2.5 bg-white rounded-xl text-xs font-bold text-slate-700 border border-transparent focus:border-indigo-400 outline-none transition-all shadow-sm"
+            />
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="貼上網址 https://..."
+                value={newLinkUrl}
+                onChange={(e) => setNewLinkUrl(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddLink()}
+                className="flex-1 px-4 py-2.5 bg-white rounded-xl text-xs font-bold text-slate-700 border border-transparent focus:border-indigo-400 outline-none transition-all shadow-sm"
+              />
+              <button
+                onClick={handleAddLink}
+                disabled={!newLinkTitle || !newLinkUrl}
+                className="px-4 bg-indigo-500 text-white rounded-xl text-[10px] font-black shadow-lg shadow-indigo-100 disabled:opacity-30 transition-all"
+              >
+                新增
+              </button>
+            </div>
           </div>
         </div>
       )}
