@@ -49,7 +49,6 @@ export async function createNewTrip(data: {
 	return { success: true, id: uniqueId };
 }
 
-// ✨ 補回首頁需要的：取得我的所有行程 (含去重邏輯)
 export async function getUserTrips() {
 	const supabase = await createSupabaseServerClient();
 	const { data: { user } } = await supabase.auth.getUser();
@@ -94,7 +93,7 @@ export async function updateTripDetails(tripId: string, data: any) {
 	const supabase = await createSupabaseServerClient();
 	const { error } = await supabase.from("trips").update(data).eq("id", tripId);
 	if (error) {
-		console.error("❌ 更新失敗:", error.message);
+		console.error("更新失敗:", error.message);
 		return { success: false, message: error.message };
 	}
 	revalidatePath(`/trip/${tripId}`);
@@ -105,21 +104,20 @@ export async function updateTripDetails(tripId: string, data: any) {
 export async function updateTripDays(tripId: string, newCount: number) {
 	const supabase = await createSupabaseServerClient();
 
-	// 💡 增加 select() 並查看回傳的 data
+
 	const { data, error, count } = await supabase
 		.from('trips')
 		.update({ days_count: newCount })
 		.eq('id', tripId)
-		.select(); // 👈 加上 select() 會讓它回傳更新後的資料
+		.select();
 
 	if (error) {
 		console.error("更新出錯:", error.message);
 		throw error;
 	}
 
-	// 💡 檢查有沒有資料被更新
 	if (!data || data.length === 0) {
-		console.warn("⚠️ 更新成功但沒有資料受影響，請檢查 ID 是否正確或 RLS 政策");
+		console.warn(" 更新成功但沒有資料受影響，請檢查 ID 是否正確或 RLS 政策");
 		// 如果沒更新到，我們手動拋出錯誤讓前端回滾
 		throw new Error("No rows updated");
 	}
@@ -177,7 +175,7 @@ export async function addSpotToDB(
 	day: number,
 	lat?: number,
 	lng?: number,
-	place_id: string = "", // 👈 關鍵：新增這個參數
+	place_id: string = "",
 	category: string = 'spot',
 	time: string = ""
 ) {
@@ -192,7 +190,6 @@ export async function addSpotToDB(
 
 	const nextIndex = existingSpots ? existingSpots.length : 0;
 
-	// 🚀 寫入資料庫：記得把 place_id 塞進去
 	const { error } = await supabase.from('spots').insert([{
 		trip_id: tripId,
 		name,
@@ -200,7 +197,7 @@ export async function addSpotToDB(
 		order_index: nextIndex,
 		lat,
 		lng,
-		place_id, // 👈 關鍵：這裡要把值寫進資料庫欄位
+		place_id,
 		category,
 		time
 	}]);
@@ -216,8 +213,7 @@ export async function addSpotToDB(
 export async function deleteSpot(tripId: string, spotId: string) {
 	const supabase = await createSupabaseServerClient();
 
-	// 🚀 1. 優先刪除與此景點關聯的所有費用記錄
-	// 這樣分帳報表（TripSummaryModal）才會即時扣除這些金額
+	// 分帳報表（TripSummaryModal）才會即時扣除這些金額
 	const { error: expenseError } = await supabase
 		.from('expenses')
 		.delete()
@@ -228,7 +224,6 @@ export async function deleteSpot(tripId: string, spotId: string) {
 		console.error("❌ 刪除關聯費用失敗:", expenseError.message);
 	}
 
-	// 🚀 2. 接著刪除景點本身
 	const { error: spotError } = await supabase
 		.from('spots')
 		.delete()
@@ -239,7 +234,6 @@ export async function deleteSpot(tripId: string, spotId: string) {
 		throw spotError;
 	}
 
-	// 🚀 3. 重新驗證頁面快取，讓前端畫面（包含分帳金額）同步刷新
 	revalidatePath(`/trip/${tripId}`);
 }
 
@@ -295,7 +289,19 @@ export async function updateSpotTransportMode(spotId: string, mode: 'WALKING' | 
 	const supabase = await createSupabaseServerClient();
 	await supabase.from('spots').update({ transport_mode: mode }).eq('id', spotId);
 }
+export async function updateSpotTransportFare(spotId: string, fare: number) {
+	const supabase = await createSupabaseServerClient();
+	await supabase.from('spots').update({ estimated_fare: fare }).eq('id', spotId);
+}
+export async function updateSpotTransportTime(spotId: string, time: string) {
+	const supabase = await createSupabaseServerClient();
+	const { error } = await supabase
+		.from('spots')
+		.update({ estimated_time: time })
+		.eq('id', spotId);
 
+	if (error) throw error;
+}
 export async function updateSpotExpenseList(tripId: string, spotId: string, expenseList: any[]) {
 	const supabase = await createSupabaseServerClient();
 	const { error: deleteError } = await supabase
@@ -304,7 +310,7 @@ export async function updateSpotExpenseList(tripId: string, spotId: string, expe
 		.eq('spot_id', spotId);
 
 	if (deleteError) {
-		console.error("❌ 刪除舊費用失敗:", deleteError.message);
+		console.error("刪除失敗:", deleteError.message);
 		throw deleteError;
 	}
 	const insertData = expenseList.map(exp => {
@@ -332,7 +338,7 @@ export async function updateSpotExpenseList(tripId: string, spotId: string, expe
 			.insert(insertData);
 
 		if (insertError) {
-			console.error("❌ 寫入新費用失敗:", insertError.message);
+			console.error("寫入失敗:", insertError.message);
 			throw insertError;
 		}
 	}
@@ -498,7 +504,7 @@ export async function addTripLevelExpense(data: {
 	payer_id: string;
 	involved_members: string[];
 	cost_breakdown?: any;
-	is_settled?: boolean; // 🚀 新增這行
+	is_settled?: boolean;
 }) {
 	const supabase = await createSupabaseServerClient();
 
@@ -506,7 +512,7 @@ export async function addTripLevelExpense(data: {
 		...data,
 		amount: Number(data.amount) || 0,
 		cost_breakdown: data.cost_breakdown || {},
-		is_settled: data.is_settled || false // 🚀 寫入資料庫
+		is_settled: data.is_settled || false
 	}]);
 
 	if (error) throw error;
@@ -541,7 +547,7 @@ export async function deleteExpense(expenseId: string, tripId: string) {
 		.delete()
 		.eq("id", expenseId);
 	if (error) {
-		console.error("❌ 刪除費用失敗:", error.message);
+		console.error("刪除失敗:", error.message);
 		throw error;
 	}
 	revalidatePath(`/trip/${tripId}`);
@@ -556,7 +562,7 @@ export async function getUnscheduledSpots(tripId: string) {
 		.from("spots")
 		.select("*, expenses(*)")
 		.eq("trip_id", tripId)
-		.eq("day", 0) // 🚀 關鍵：抓取 Day 0
+		.eq("day", 0)
 		.order("created_at", { ascending: false });
 
 	if (error) return [];
@@ -581,7 +587,7 @@ export async function moveSpotToDay(spotId: string, targetDay: number, tripId: s
 		.update({
 			day: targetDay,
 			order_index: nextIndex,
-			note: note, // 🚀 關鍵：將備忘錄存入資料庫
+			note: note,
 			time: "09:00" // 移入時給個預設時間
 		})
 		.eq("id", spotId);

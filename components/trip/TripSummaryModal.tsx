@@ -2,13 +2,13 @@
 
 "use client";
 
-import { useState, useMemo, useEffect } from "react"; // 🚀 加入 useEffect
+import { useState, useMemo, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import {
   addTripLevelExpense,
   toggleExpenseSettled,
 } from "@/lib/actions/trip-actions";
-import { useLockBodyScroll } from "@/hooks/useLockBodyScroll"; // 🚀 引入 Hook
+import { useLockBodyScroll } from "@/hooks/useLockBodyScroll";
 
 export function TripSummaryModal({
   isOpen,
@@ -72,11 +72,18 @@ export function TripSummaryModal({
       });
   }, [allTripExpenses, allSpots]);
 
-  // 計算總額
+  // 計算全行程個人交通費總額
+  const transportTotal = useMemo(() => {
+    return allSpots.reduce((acc: number, spot: any) => {
+      return acc + (Number(spot.estimated_fare) || 0);
+    }, 0);
+  }, [allSpots]);
+
+  // 整理總額顯示格式
   const totals = useMemo(() => {
     return allExpenses.reduce(
       (acc: any, exp: any) => {
-        if (exp.is_settled) return acc; // ✨ 如果已結清，跳過不計入總額
+        if (exp.is_settled) return acc;
         const curr = exp.currency || "JPY";
         acc[curr] = (acc[curr] || 0) + (Number(exp.amount) || 0);
         return acc;
@@ -173,9 +180,7 @@ export function TripSummaryModal({
   };
 
   return (
-    // 🚀 優化：這裡使用 p-4 sm:p-10，並在手機版稍微上移一點點
     <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-10">
-      {/* 🚀 優化：max-h 使用 dvh (動態視口高度)，並將手機版限制在 82dvh 避免被瀏覽器介面擋住 */}
       <div className="bg-white w-full max-w-6xl rounded-[30px] sm:rounded-[40px] shadow-2xl overflow-hidden flex flex-col h-auto max-h-[82dvh] sm:max-h-[88vh] relative">
         {/* Header - 縮減高度以留出更多空間給內容 */}
         <div className="p-4 sm:p-6 border-b border-slate-50 flex justify-between items-center bg-indigo-600 text-white shrink-0">
@@ -197,7 +202,7 @@ export function TripSummaryModal({
 
         {/* Main Content Area - 禁止彈窗內部產生背景滾動 */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-6 sm:space-y-8 scroll-smooth">
-          {/* 🚀 快速記帳區 */}
+          {/* 快速記帳區 */}
           <div className="space-y-4">
             {!isAdding ? (
               <button
@@ -259,14 +264,12 @@ export function TripSummaryModal({
                       className="bg-white p-2.5 sm:p-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-bold shadow-sm outline-none text-slate-700"
                     />
                   </div>
-                  {/* 🚀 找到這個 label，然後替換掉整個 div */}
                   <div className="flex flex-col gap-1 col-span-2 md:col-span-1">
                     <label className="text-[9px] sm:text-[10px] font-black text-indigo-400 ml-2">
                       總額 (自動加總)
                     </label>
                     {
                       (() => {
-                        // 🚀 1. 計算目前下方分帳明細的總和 (TypeScript 斷言修正)
                         const currentSum: number = (
                           Object.values(newExp.cost_breakdown || {}) as (
                             | number
@@ -277,8 +280,6 @@ export function TripSummaryModal({
                             acc + (Number(val) || 0),
                           0,
                         );
-
-                        // 🚀 2. 判斷是否「不平衡」：總額 > 0 且 分配總額與主金額不符
                         const isUnbalanced =
                           newExp.amount > 0 &&
                           Math.abs(currentSum - newExp.amount) > 0.1;
@@ -293,7 +294,6 @@ export function TripSummaryModal({
                               placeholder="0"
                               className={cn(
                                 "bg-white/50 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black shadow-inner cursor-not-allowed w-full transition-all duration-300 outline-none",
-                                // 🚀 當不平衡時：字體變紅、加入紅色邊框、並輕微閃爍 (animate-pulse)
                                 isUnbalanced
                                   ? "text-rose-500 ring-2 ring-rose-100 animate-pulse"
                                   : "text-indigo-600",
@@ -351,7 +351,6 @@ export function TripSummaryModal({
                               <input
                                 type="number"
                                 placeholder="0"
-                                // 🚀 優化：值為 0 時顯示空字串，露出背景 0
                                 value={
                                   newExp.cost_breakdown[m.id] === 0 ||
                                   newExp.cost_breakdown[m.id] === undefined
@@ -410,27 +409,46 @@ export function TripSummaryModal({
             )}
           </div>
 
-          {/* 💰 總覽卡片與結算 */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
-            <div className="p-5 sm:p-7 bg-slate-50 rounded-[28px] sm:rounded-[35px] border border-slate-100">
-              <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                全行程總支出
-              </span>
-              <div className="mt-3 space-y-0.5">
-                <p className="text-2xl sm:text-3xl font-black text-indigo-600">
-                  ¥ {totals.JPY.toLocaleString()}
-                </p>
-                <p className="text-xs sm:text-sm font-bold text-slate-400">
-                  $ {totals.TWD.toLocaleString()} TWD
-                </p>
+          {/*  總覽卡片與結算 */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 sm:gap-5">
+            <div className="flex flex-col md:col-span-2 sm:flex-row gap-4 sm:gap-0 bg-slate-50 rounded-[28px] sm:rounded-[35px] border border-slate-100 overflow-hidden shadow-sm">
+              {/* 共同支出部分 */}
+              <div className="flex-1 p-5 sm:p-7">
+                <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  全行程總支出
+                </span>
+                <div className="mt-3 space-y-0.5">
+                  <p className="text-2xl sm:text-3xl font-black text-indigo-600 whitespace-nowrap">
+                    ¥ {totals.JPY.toLocaleString()}
+                  </p>
+                  <p className="text-xs sm:text-sm font-bold text-slate-400">
+                    $ {totals.TWD.toLocaleString()} TWD
+                  </p>
+                </div>
+              </div>
+              {/* 分隔線 (僅在桌面版顯示) */}
+              <div className="hidden sm:block w-[1px] bg-slate-200 my-6"></div>
+              {/* 個人交通預估部分 */}
+              <div className="flex-1 p-5 sm:p-7 bg-orange-50/30">
+                <span className="text-[9px] sm:text-[10px] font-black text-orange-400 uppercase tracking-widest">
+                  個人地鐵交通預估
+                </span>
+                <div className="mt-3">
+                  <p className="text-2xl sm:text-3xl font-black text-orange-500 whitespace-nowrap">
+                    ¥ {transportTotal.toLocaleString()}
+                  </p>
+                  <p className="text-[10px] font-bold text-orange-400 mt-1 ">
+                    * 此項不計入分帳&行程總支出
+                  </p>
+                </div>
               </div>
             </div>
-
-            <div className="col-span-1 md:col-span-2 p-5 sm:p-7 bg-slate-50 rounded-[28px] sm:rounded-[35px] border border-slate-100 overflow-x-auto scrollbar-hide">
+            {/* 人員結算概況 */}
+            <div className="col-span-1 md:col-span-3 p-5 sm:p-7 bg-slate-50 rounded-[28px] sm:rounded-[35px] border border-slate-100 overflow-x-auto scrollbar-hide">
               <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest">
                 個人結算概況
               </span>
-              <div className="mt-4 flex gap-5 sm:gap-8">
+              <div className="mt-4 flex gap-5 sm:gap-8 whitespace-nowrap">
                 {settlement.map((s: any) => (
                   <div
                     key={s.id}
@@ -466,7 +484,6 @@ export function TripSummaryModal({
               </div>
             </div>
           </div>
-
           {/* 📋 費用清單 - 響應式切換 */}
           <div className="space-y-4">
             {/* 📱 手機版：卡片式清單 (md 以下顯示) */}

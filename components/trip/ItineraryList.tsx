@@ -19,6 +19,8 @@ import {
   getExpenses,
   deleteExpense,
   updateSpotLinks,
+  updateSpotTransportFare,
+  updateSpotTransportTime,
 } from "@/lib/actions/trip-actions";
 
 import { useJsApiLoader } from "@react-google-maps/api";
@@ -401,36 +403,100 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                     <div key={spot.id} className="relative">
                       {/* 交通連接線邏輯 */}
                       {idx > 0 && (
-                        <div className="flex items-center ml-10 my-0.5 h-7 relative">
+                        <div className="flex items-center ml-10 my-1 h-10 relative">
                           <div className="absolute left-[18px] top-[-10px] bottom-[-10px] w-[2px] bg-slate-100 -z-0"></div>
-                          <button
-                            onClick={() =>
-                              updateSpotTransportMode(
-                                spot.id,
-                                spot.transport_mode === "TRANSIT"
-                                  ? "WALKING"
-                                  : "TRANSIT",
-                              ).then(() => initLoad(false))
-                            }
-                            className="relative z-10 bg-white border border-slate-200 px-3 py-0.5 rounded-full text-[10px] font-black shadow-sm hover:border-orange-300 flex items-center gap-1.5 transition-all active:scale-95"
-                          >
-                            <span>
-                              {spot.transport_mode === "TRANSIT" ? "🚇" : "🚶"}
-                            </span>
-                            <span className="text-slate-800 font-bold">
-                              {spot.transport_mode === "TRANSIT"
-                                ? "搭地鐵"
-                                : "走路"}
-                            </span>
-                            {durations[spot.id] && (
-                              <span className="ml-1 pl-1.5 border-l border-slate-100 text-slate-600 ">
-                                {durations[spot.id].time || durations[spot.id]}
+
+                          <div className="flex items-center gap-2 relative z-10">
+                            {/* 1. 模式切換按鈕 */}
+                            <button
+                              onClick={() =>
+                                updateSpotTransportMode(
+                                  spot.id,
+                                  spot.transport_mode === "TRANSIT"
+                                    ? "WALKING"
+                                    : "TRANSIT",
+                                ).then(() => initLoad(false, false))
+                              }
+                              className="bg-white border border-slate-200 px-3 py-1 rounded-full text-[10px] font-black shadow-sm hover:border-orange-300 flex items-center gap-1.5 transition-all"
+                            >
+                              <span>
+                                {spot.transport_mode === "TRANSIT"
+                                  ? "🚇"
+                                  : "🚶"}
                               </span>
+                              <span className="text-slate-800 font-bold">
+                                {spot.transport_mode === "TRANSIT"
+                                  ? "搭地鐵"
+                                  : "走路"}
+                              </span>
+                            </button>
+
+                            {/* 2. 只有地鐵模式才顯示：車資 + 時間 的組合 */}
+                            {spot.transport_mode === "TRANSIT" && (
+                              <div className="flex items-center bg-white border border-slate-200 px-2 py-1 rounded-full shadow-sm gap-2">
+                                {/* 車資輸入區 */}
+                                <div className="flex items-center border-r border-slate-100 pr-2">
+                                  <span className="text-[10px] text-slate-600 mr-1">
+                                    ¥
+                                  </span>
+                                  <input
+                                    type="number"
+                                    defaultValue={spot.estimated_fare || ""}
+                                    placeholder="0"
+                                    className="w-12 text-[10px] font-black focus:outline-none bg-transparent text-slate-800"
+                                    onBlur={(e) => {
+                                      const val = parseInt(e.target.value) || 0;
+                                      if (val !== spot.estimated_fare) {
+                                        updateSpotTransportFare(
+                                          spot.id,
+                                          val,
+                                        ).then(() => initLoad(false, false));
+                                      }
+                                    }}
+                                  />
+                                </div>
+
+                                {/* 時間輸入 (手動填寫) */}
+                                <div className="flex items-center pl-1">
+                                  <span className="text-[10px] mr-1">⏱️</span>
+                                  <input
+                                    type="text"
+                                    defaultValue={spot.estimated_time || ""}
+                                    placeholder="請輸入"
+                                    className="w-8 text-[10px] font-black focus:outline-none bg-transparent placeholder:text-slate-300 text-slate-600"
+                                    onBlur={(e) => {
+                                      const val = e.target.value;
+                                      if (val !== spot.estimated_time) {
+                                        updateSpotTransportTime(
+                                          spot.id,
+                                          val,
+                                        ).then(() => initLoad(false, false));
+                                      }
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter")
+                                        (e.target as HTMLInputElement).blur();
+                                    }}
+                                  />
+                                  <span className="text-[10px] mr-1 text-slate-600">
+                                    min
+                                  </span>
+                                </div>
+                              </div>
                             )}
-                          </button>
+
+                            {/* 3. 如果是走路模式，單純顯示時間 */}
+                            {spot.transport_mode === "WALKING" &&
+                              durations[spot.id] && (
+                                <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-full border border-slate-100">
+                                  🚶{" "}
+                                  {durations[spot.id].time ||
+                                    durations[spot.id]}
+                                </span>
+                              )}
+                          </div>
                         </div>
                       )}
-
                       <SpotItem
                         spot={spot}
                         members={members}
@@ -444,8 +510,8 @@ export default function ItineraryList({ tripId }: { tripId: string }) {
                             initLoad(false, false);
                           });
                         }}
-                        onNoteChange={handleNoteChange} // 這個妳已經寫好本地更新了，很棒！
-                        onLinkChange={handleLinkChange} //  2. 傳入這個新的 Handler
+                        onNoteChange={handleNoteChange}
+                        onLinkChange={handleLinkChange}
                         onCategoryChange={(id, cat) => {
                           // 1. 先改本地狀態
                           setSpots((prev) =>

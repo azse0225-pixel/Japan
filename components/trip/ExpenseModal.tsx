@@ -26,7 +26,7 @@ export function ExpenseModal({ isOpen, onClose, spot, members, onSave }: any) {
 
   const handleUpdate = (id: string, field: string, value: any) => {
     setLocalList((prev) =>
-      prev.map((exp) => (exp.id === id ? { ...exp, [field]: value } : exp))
+      prev.map((exp) => (exp.id === id ? { ...exp, [field]: value } : exp)),
     );
   };
 
@@ -35,7 +35,7 @@ export function ExpenseModal({ isOpen, onClose, spot, members, onSave }: any) {
   const handleMemberAmountChange = (
     expId: string,
     memberId: string,
-    value: string
+    value: string,
   ) => {
     const memberAmount = value === "" ? 0 : Number(value);
 
@@ -51,7 +51,7 @@ export function ExpenseModal({ isOpen, onClose, spot, members, onSave }: any) {
           // 2. 🚀 自動加總：將所有成員的細分金額加起來，變成這筆消費的總額
           const newTotalAmount = Object.values(newBreakdown).reduce(
             (sum: number, val: any) => sum + (Number(val) || 0),
-            0
+            0,
           );
 
           return {
@@ -61,7 +61,7 @@ export function ExpenseModal({ isOpen, onClose, spot, members, onSave }: any) {
           };
         }
         return exp;
-      })
+      }),
     );
   };
 
@@ -85,7 +85,7 @@ export function ExpenseModal({ isOpen, onClose, spot, members, onSave }: any) {
           };
         }
         return exp;
-      })
+      }),
     );
   };
 
@@ -170,7 +170,7 @@ export function ExpenseModal({ isOpen, onClose, spot, members, onSave }: any) {
                         />
                       </td>
                       <td className="px-4 py-4">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 text-slate-700">
                           {/* 1. 幣別切換選單 */}
                           <select
                             value={exp.currency || "JPY"}
@@ -188,12 +188,12 @@ export function ExpenseModal({ isOpen, onClose, spot, members, onSave }: any) {
                           {(() => {
                             // 1. 計算目前手動輸入的總和
                             const breakdownValues = Object.values(
-                              exp.cost_breakdown || {}
+                              exp.cost_breakdown || {},
                             ) as (number | string)[];
                             const breakdownSum = breakdownValues.reduce(
                               (acc: number, val: number | string) =>
                                 acc + (Number(val) || 0),
-                              0
+                              0,
                             );
 
                             // 🚀 關鍵判斷：是否有人填過金額？
@@ -230,8 +230,8 @@ export function ExpenseModal({ isOpen, onClose, spot, members, onSave }: any) {
                                                 : parsedValue,
                                               cost_breakdown: {},
                                             }
-                                          : item
-                                      )
+                                          : item,
+                                      ),
                                     );
                                   }}
                                   onFocus={(e) => e.target.select()}
@@ -239,7 +239,7 @@ export function ExpenseModal({ isOpen, onClose, spot, members, onSave }: any) {
                                     "bg-transparent border-none outline-none font-black w-full transition-all duration-300",
                                     isUnbalanced
                                       ? "text-rose-500 animate-pulse"
-                                      : "text-indigo-600"
+                                      : "text-indigo-600",
                                   )}
                                 />
 
@@ -281,7 +281,7 @@ export function ExpenseModal({ isOpen, onClose, spot, members, onSave }: any) {
                         <div className="flex flex-wrap gap-2">
                           {members.map((m: Member) => {
                             const isChecked = exp.involved_members?.includes(
-                              m.id
+                              m.id,
                             );
                             const individualAmount = exp.cost_breakdown?.[m.id];
                             return (
@@ -291,7 +291,7 @@ export function ExpenseModal({ isOpen, onClose, spot, members, onSave }: any) {
                                   "flex items-center gap-2 p-1.5 rounded-xl border transition-all",
                                   isChecked
                                     ? "bg-white border-indigo-200 shadow-sm"
-                                    : "opacity-30"
+                                    : "opacity-30",
                                 )}
                               >
                                 <button
@@ -300,7 +300,7 @@ export function ExpenseModal({ isOpen, onClose, spot, members, onSave }: any) {
                                     "px-2 py-1 rounded-lg text-[10px] font-black",
                                     isChecked
                                       ? "bg-indigo-500 text-white"
-                                      : "bg-slate-200 text-slate-500"
+                                      : "bg-slate-200 text-slate-500",
                                   )}
                                 >
                                   {m.name}
@@ -322,7 +322,7 @@ export function ExpenseModal({ isOpen, onClose, spot, members, onSave }: any) {
                                         handleMemberAmountChange(
                                           exp.id,
                                           m.id,
-                                          e.target.value
+                                          e.target.value,
                                         )
                                       }
                                       className="w-14 bg-transparent text-[10px] font-bold text-indigo-600 outline-none"
@@ -338,7 +338,7 @@ export function ExpenseModal({ isOpen, onClose, spot, members, onSave }: any) {
                         <button
                           onClick={() =>
                             setLocalList((prev) =>
-                              prev.filter((e) => e.id !== exp.id)
+                              prev.filter((e) => e.id !== exp.id),
                             )
                           }
                           className="text-slate-300 hover:text-red-500 transition-colors"
@@ -387,12 +387,12 @@ export function ExpenseModal({ isOpen, onClose, spot, members, onSave }: any) {
                           "text-sm font-black",
                           settlement[m.id][curr] >= 0
                             ? "text-emerald-500"
-                            : "text-rose-400"
+                            : "text-rose-400",
                         )}
                       >
                         {settlement[m.id][curr] >= 0 ? "+" : ""}
                         {Math.round(
-                          settlement[m.id][curr]
+                          settlement[m.id][curr],
                         ).toLocaleString()}{" "}
                         {curr}
                       </div>
