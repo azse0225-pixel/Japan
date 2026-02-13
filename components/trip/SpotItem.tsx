@@ -141,7 +141,13 @@ export default function SpotItem({
               onClick={(e) => e.stopPropagation()}
               className="bg-orange-500 text-white font-black px-2 py-0.5 rounded-lg border-none text-[10px] outline-none shadow-sm cursor-pointer shrink-0"
             />
-
+            {totalAct > 0 && (
+              <div className="flex md:hidden ml-auto  text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100 whitespace-nowrap">
+                {/* 這裡改用 displayCurrency 來判定 */}
+                {displayCurrency === "TWD" ? "$" : "¥"}
+                {totalAct.toLocaleString()}
+              </div>
+            )}
             <div className="flex items-center gap-1.5 relative">
               <button
                 onClick={(e) => {
@@ -197,7 +203,13 @@ export default function SpotItem({
             {spot.name}
           </span>
         </div>
-
+        {totalAct > 0 && (
+          <div className="hidden md:flex ml-auto  text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100 whitespace-nowrap">
+            {/* 這裡改用 displayCurrency 來判定 */}
+            {displayCurrency === "TWD" ? "$" : "¥"}
+            {totalAct.toLocaleString()}
+          </div>
+        )}
         {/* 刪除按鈕 (✕)：修改為先開啟確認介面 */}
         <button
           onClick={(e) => {
@@ -275,16 +287,8 @@ export default function SpotItem({
           }}
           onClick={(e) => e.stopPropagation()}
           placeholder="輸入備註..."
-          className="flex-1 bg-transparent text-sm text-slate-500 outline-none border-b border-transparent hover:border-slate-100 transition-all"
+          className="flex-1 min-w-0 bg-transparent text-sm text-slate-500 outline-none border-b border-transparent hover:border-slate-100 transition-all"
         />
-
-        {totalAct > 0 && (
-          <div className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100 whitespace-nowrap">
-            {/* 這裡改用 displayCurrency 來判定 */}
-            {displayCurrency === "TWD" ? "$" : "¥"}
-            {totalAct.toLocaleString()}
-          </div>
-        )}
       </div>
 
       {/*  第三部分：展開區 - 附件預覽 */}
@@ -404,7 +408,7 @@ export default function SpotItem({
                 value={newLinkUrl}
                 onChange={(e) => setNewLinkUrl(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleAddLink()}
-                className="flex-1 px-4 py-2.5 bg-white rounded-xl text-xs font-bold text-slate-700 border border-transparent focus:border-indigo-400 outline-none transition-all shadow-sm"
+                className="min-w-0 flex-1 px-4 py-2.5 bg-white rounded-xl text-xs font-bold text-slate-700 border border-transparent focus:border-indigo-400 outline-none transition-all shadow-sm"
               />
               <button
                 onClick={handleAddLink}
