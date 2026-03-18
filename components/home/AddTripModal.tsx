@@ -31,7 +31,6 @@ export default function AddTripModal({ onClose }: { onClose: () => void }) {
       const result = await createNewTrip(data);
 
       if (result.success && result.id) {
-        // ✨✨✨ 關鍵：這段絕對不能漏掉 ✨✨✨
         // 1. 先抓出舊的清單
         const oldTrips = JSON.parse(localStorage.getItem("my_trips") || "[]");
 
@@ -44,9 +43,6 @@ export default function AddTripModal({ onClose }: { onClose: () => void }) {
 
         // 標記我是創辦人
         localStorage.setItem(`owner_of_${result.id}`, "true");
-
-        console.log("✅ 成功存入口袋:", result.id);
-        // ✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨✨
 
         onClose();
         // 直接跳轉到行程頁面

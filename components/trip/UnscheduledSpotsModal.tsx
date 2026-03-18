@@ -80,7 +80,7 @@ export default function UnscheduledSpotsModal({
     // 標記為「已變更」
     setUnsavedChanges((prev) => ({ ...prev, [id]: true }));
   };
-  // 🚀 4. 建立手動儲存函式
+  //  4. 建立手動儲存函式
   const handleSaveNote = async (id: string) => {
     setSavingId(id);
     try {
@@ -89,7 +89,6 @@ export default function UnscheduledSpotsModal({
 
       // 儲存成功後，解除「已變更」標記
       setUnsavedChanges((prev) => ({ ...prev, [id]: false }));
-      console.log("備註已手動儲存成功！");
     } catch (err) {
       alert("儲存失敗，請檢查網路連線");
     } finally {

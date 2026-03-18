@@ -40,7 +40,7 @@ export default function MapComponent({
   };
 
   const resolveLocation = async (
-    spot: any
+    spot: any,
   ): Promise<{ lat: number; lng: number } | null> => {
     if (!spot) return null;
     let lat, lng;
@@ -167,7 +167,7 @@ export default function MapComponent({
             markersRef.current.push(marker);
           }
           return loc;
-        })
+        }),
       );
 
       if (spots.length < 2) {
@@ -190,7 +190,7 @@ export default function MapComponent({
         const getRoute = (
           origin: any,
           destination: any,
-          travelMode: google.maps.TravelMode
+          travelMode: google.maps.TravelMode,
         ) => {
           return new Promise<any>((resolve) => {
             directionsService.route(
@@ -198,15 +198,12 @@ export default function MapComponent({
               (result, status) => {
                 if (status === "OK") resolve(result);
                 else resolve(null);
-              }
+              },
             );
           });
         };
 
         if (mode === "TRANSIT") {
-          console.log("newDurations", newDurations);
-
-          // 1. 🔍 尋找最近車站 (針對日本優化範圍)
           const stA = await findNearestStation(startLoc);
           const stB = await findNearestStation(endLoc);
 
@@ -214,9 +211,8 @@ export default function MapComponent({
             const transitFullRoute = await getRoute(
               startLoc,
               endLoc,
-              google.maps.TravelMode.TRANSIT
+              google.maps.TravelMode.TRANSIT,
             );
-            console.log("transitFullRoute", transitFullRoute);
 
             if (transitFullRoute?.routes[0]?.legs[0]) {
               const leg = transitFullRoute.routes[0].legs[0];
@@ -227,7 +223,7 @@ export default function MapComponent({
               let arrivalName = "";
 
               const transitStep = leg.steps.find(
-                (s: any) => s.travel_mode === "TRANSIT"
+                (s: any) => s.travel_mode === "TRANSIT",
               );
 
               if (transitStep?.transit) {
@@ -263,12 +259,12 @@ export default function MapComponent({
             const leg1 = await getRoute(
               startLoc,
               stA,
-              google.maps.TravelMode.WALKING
+              google.maps.TravelMode.WALKING,
             );
             const leg2 = await getRoute(
               stB,
               endLoc,
-              google.maps.TravelMode.WALKING
+              google.maps.TravelMode.WALKING,
             );
             if (leg1) allSegments.push({ result: leg1, id: `${segmentId}-1` });
             if (leg2) allSegments.push({ result: leg2, id: `${segmentId}-2` });
@@ -277,7 +273,7 @@ export default function MapComponent({
             const walkResult = await getRoute(
               startLoc,
               endLoc,
-              google.maps.TravelMode.WALKING
+              google.maps.TravelMode.WALKING,
             );
             if (walkResult) {
               allSegments.push({ result: walkResult, id: segmentId });
@@ -315,7 +311,6 @@ export default function MapComponent({
           map.setZoom(15);
         }
       }
-      console.log("🚀 即將傳回父組件的資料:", newDurations); // ✨ 加這行
     };
     updateMap();
   }, [spots, isLoaded, map, focusedSpot]);

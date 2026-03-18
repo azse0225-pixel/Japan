@@ -27,23 +27,21 @@ export default function HomePage() {
         } = await supabase.auth.getUser();
         setUser(authUser);
 
-        // 2. 🔍 修改核心邏輯：不再只靠 localStorage
+        // 2.  修改核心邏輯：不再只靠 localStorage
         // 直接去資料庫抓「所有」行程，或是你想展示的行程
-        console.log("🚀 準備抓取資料庫所有行程...");
 
         const { data, error } = await supabase
-          .from("trips") // ⚠️ 這裡請確保是你的資料表正確名稱
+          .from("trips") //  這裡請確保是你的資料表正確名稱
           .select("*")
           .order("created_at", { ascending: false });
 
         if (error) {
-          console.error("❌ Supabase 抓取失敗:", error.message);
+          console.error(" Supabase 抓取失敗:", error.message);
         } else {
-          console.log("✅ 成功抓取到資料數量:", data?.length);
           setTrips(data || []);
         }
       } catch (error) {
-        console.error("❌ 執行 loadAllTrips 發生錯誤:", error);
+        console.error(" 執行 loadAllTrips 發生錯誤:", error);
       } finally {
         setLoading(false);
       }
